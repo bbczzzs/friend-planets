@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Friend Planets</title>
+<meta name="description" content="Every Rare Friend is a planet. A 3D Rare Friends game for the Vibeathon (Character Spotlight).">
+<style>
+  :root { --ink: #111; --paper: #eee; --white: #fff; --signal: #ccff00; --coral: #ED927E; --sun: #F2CE68; --pond: #7DB4DB; --lilac: #B3A0D8; --muted: #555; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { background: #16163a; color: var(--white); padding: 48px 16px 40px; text-align: center; border-bottom: 3px solid var(--ink); }
+  header h1 { margin: 0 0 8px; font: 800 clamp(34px, 7vw, 64px)/1 ui-monospace, "Cascadia Mono", Menlo, monospace; letter-spacing: 2px; }
+  header p { margin: 0 auto; max-width: 640px; font-size: 18px; color: #e8e6ff; }
+  .tag { display: inline-block; margin-top: 16px; padding: 4px 10px; background: var(--signal); color: var(--ink); font: 700 13px ui-monospace, monospace; border: 2px solid var(--ink); }
+  main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 64px; }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin: 24px 0 8px; }
+  .cta a { display: inline-block; padding: 12px 18px; border: 2px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); background: var(--signal); color: var(--ink); font: 700 15px ui-monospace, monospace; text-decoration: none; }
+  .cta a.alt { background: var(--white); }
+  .note { text-align: center; color: var(--muted); font-size: 14px; }
+  video { display: block; width: 100%; border: 3px solid var(--ink); box-shadow: 6px 6px 0 var(--ink); background: #000; margin: 24px 0; }
+  h2 { font: 800 26px ui-monospace, monospace; margin: 40px 0 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+  figure { margin: 0; background: var(--white); border: 2px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+  figure img { display: block; width: 100%; height: auto; border-bottom: 2px solid var(--ink); }
+  figcaption { padding: 8px 10px; font-size: 14px; }
+  figcaption b { display: block; font: 700 13px ui-monospace, monospace; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  .card { background: var(--white); border: 2px solid var(--ink); padding: 14px 16px; box-shadow: 3px 3px 0 var(--ink); }
+  .card h3 { margin: 0 0 6px; font: 700 16px ui-monospace, monospace; }
+  .card p { margin: 0; font-size: 15px; }
+  table { width: 100%; border-collapse: collapse; background: var(--white); border: 2px solid var(--ink); font-size: 14px; }
+  td, th { padding: 7px 10px; border-bottom: 1px solid #ccc; text-align: left; vertical-align: top; }
+  th { font: 700 13px ui-monospace, monospace; background: #f6f6f6; }
+  footer { text-align: center; padding: 24px 16px; color: var(--muted); font-size: 13px; }
+  a { color: #2a4d9a; }
+</style>
+</head>
+<body>
+<header>
+  <h1>FRIEND PLANETS</h1>
+  <p>Every Rare Friend is a planet. Its own on-chain pixels are raised across its world. Walk it, fly your rocket to other Friends' planets, land, play, and meet everyone online.</p>
+  <span class="tag">Rare Friends Vibeathon · Character Spotlight</span>
+</header>
+<main>
+  <div class="cta">
+    <a href="../">▶ Play (Generations NFT holders)</a>
+    <a class="alt" href="https://github.com/bbczzzs/friend-planets">Source</a>
+  </div>
+  <p class="note">Playing needs a browser wallet on Robinhood mainnet (chain 4663) holding a hardwired Generations NFT. No RF, signature or transaction is ever used. No wallet? The trailer shows it all.</p>
+
+  <video src="../media/friend-planets-trailer.mp4" controls playsinline preload="metadata" poster="../media/portrait-planet.png"></video>
+
+  <h2>Your Friend is the main character</h2>
+  <div class="cards">
+    <div class="card"><h3>🪐 Its pixels are its planet</h3><p>The Friend's canonical 16×16 frame, black mask with the white halo, is raised across the ground: seen from space, on every landing, and walkable.</p></div>
+    <div class="card"><h3>🌈 Its family is its world</h3><p>Nine biomes with their own sky, trees, water, fish, crop, night glow and voice: tundra, lantern isles, meadow, moss garden, dunes, cloud candy, ridge, reef, hollow grove.</p></div>
+    <div class="card"><h3>🪶 Its family is its perk</h3><p>Hoverers float, Colossus hits harder, Family grows crops twice as fast, Masks can't be read by the keeper, Sparklings light up the night… every family plays differently.</p></div>
+    <div class="card"><h3>🔢 Its token is its planet</h3><p>Name, size, layout, rings, moons and sport come from the token number, so a Friend's planet is the same for everyone who visits.</p></div>
+  </div>
+
+  <h2>Screens</h2>
+  <div class="grid">
+    <figure><img src="../media/portrait-planet.png" alt="A planet with the Friend's pixel portrait on it, seen from space"><figcaption><b>Your Friend is the planet</b>The opening shot, from space.</figcaption></figure>
+    <figure><img src="../media/on-your-face.png" alt="The Friend standing on its giant pixel portrait"><figcaption><b>Standing on your own face</b>Walk the raised pixels.</figcaption></figure>
+    <figure><img src="../media/cockpit.png" alt="Rocket cockpit with the Friend in the pilot seat"><figcaption><b>Cockpit</b>Your Friend flies; you ride along.</figcaption></figure>
+    <figure><img src="../media/landing.png" alt="Rocket firing its engine above a landing pad"><figcaption><b>Landing burn</b>Hold thrust, touch down under 2.8 m/s.</figcaption></figure>
+    <figure><img src="../media/host.png" alt="A planet's Friend greeting the player"><figcaption><b>Every Friend has a voice</b>Greetings and trash talk by family.</figcaption></figure>
+    <figure><img src="../media/fishing.png" alt="Fishing fight with line tension bars"><figcaption><b>Fishing</b>Nibbles, the bite, then a real fight.</figcaption></figure>
+    <figure><img src="../media/boxing.png" alt="Boxing from behind the player's Friend"><figcaption><b>Boxing</b>Read the gloves, dodge, counter.</figcaption></figure>
+    <figure><img src="../media/race.png" alt="Hoverboard ring race"><figcaption><b>Ring race</b>Ten rings around the whole planet.</figcaption></figure>
+    <figure><img src="../media/online.png" alt="Another player's Friend with a chat bubble"><figcaption><b>Online</b>Other players, chat and emotes.</figcaption></figure>
+  </div>
+
+  <h2>What you do</h2>
+  <table>
+    <tr><th>Activity</th><th>How it plays</th></tr>
+    <tr><td>🎣 Fishing</td><td>Aim, hold to charge the cast. A fish nibbles, then bites: hook it, then reel while easing off on its runs and pulling the other way. 22 species.</td></tr>
+    <tr><td>🌱 Farming</td><td>Plant the planet's crop on a 3×3 farm and harvest it when it's ripe.</td></tr>
+    <tr><td>⛏️ Treasure · 🦋 Butterflies</td><td>Dig at sparkles (with one rare treasure per family) and catch six kinds of butterfly.</td></tr>
+    <tr><td>🛹 Ring race</td><td>Hoverboard through ten rings looping around the planet; best time per planet.</td></tr>
+    <tr><td>⚽ 🎾 🥊 Sports</td><td>Against the planet's Friend: a two-way penalty shootout, tennis with real bounces and scoring, and Punch-Out style boxing.</td></tr>
+    <tr><td>🚀 Rocket</td><td>Board up the ramp, launch from the cockpit, steer or autopilot, fly the landing burn. 🔭 Discover any Friend by token number.</td></tr>
+    <tr><td>🌐 Online</td><td>Everyone shares the galaxy: see other Friends on your planet, chat, wave, and fly to where they are. Peer to peer; only Friend numbers, positions and chat are shared.</td></tr>
+  </table>
+  <p class="note">Rewards are ★ stars, trophies and a collection book: never RF.</p>
+</main>
+<footer>Built with FriendSDK v0.1.4, three.js and Trystero · Rare Friends artwork is read on-chain and drawn unmodified · <a href="https://github.com/bbczzzs/friend-planets">github.com/bbczzzs/friend-planets</a></footer>
+</body>
+</html>

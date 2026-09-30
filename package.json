@@ -1,0 +1,28 @@
+{
+  "name": "friend-planets",
+  "version": "1.0.0",
+  "description": "Friend Planets: a cozy 3D planet-hopping game starring your Rare Friend. Rare Friends Vibeathon (Character Spotlight), built with FriendSDK v0.1.4 and three.js",
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "friendsdk dev games/planets3d",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && friendsdk build games/planets3d --outdir dist && node tools/add-net.mjs dist",
+    "check": "friendsdk check games/planets3d",
+    "test": "friendsdk test games/planets3d",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@rarefriends/friendsdk": "https://github.com/spokesz/friendsdk/releases/download/v0.1.4/rarefriends-friendsdk-0.1.4.tgz",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "three": "^0.186.0",
+    "trystero": "^0.25.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@types/three": "^0.186.0",
+    "esbuild": "^0.25.0",
+    "playwright": "^1.63.0",
+    "typescript": "^5.9.0"
+  }
+}
