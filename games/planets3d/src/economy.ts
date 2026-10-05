@@ -23,8 +23,8 @@ import type { Progress } from "./progress";
 export const RF_SPLIT = { builder: 0.75, rareFriends: 0.25 } as const;
 /** On another Friend's planet, this share of the price goes to that Friend's owner (out of the builder's share). */
 export const OWNER_CUT = 0.1;
-/** Stars for the first visit each day. */
-export const DAILY_STARS = 25;
+/** Stars for the first visit each day: grows with your streak of days in a row (capped). */
+export const dailyStars = (streak: number) => 20 + 5 * Math.min(streak, 8);
 
 /** What the market pays in ★ for what you collect, by rarity (1 common … 4 legendary). */
 const SELL_BY_RARITY = {
@@ -79,6 +79,8 @@ export const itemById = (id: string) => SHOP.find(i => i.id === id);
  * This week's featured shelf: three premium items, rotating every Monday (UTC).
  * Everything comes back around later; the rotation is just a spotlight.
  */
+/** This week's featured items are this much off. */
+export const FEATURED_OFF = 0.15;
 export function featured(now = Date.now()) {
   const premium = SHOP.filter(i => i.currency === "rf");
   const week = Math.floor((now / 86_400_000 + 3) / 7); // weeks since a Monday
@@ -111,6 +113,7 @@ export interface Wallet {
   equip: { rocket: string; hat: string; aura: string };
   items: Record<string, number>; // consumables
   daily: string; // last day the daily bonus was claimed (YYYY-MM-DD)
+  streak?: number; // days in a row
   orders: Order[]; // last RF purchases (simulated ledger)
 }
 const STARTER = ["rocket:home", "hat:none", "aura:none"];
@@ -190,12 +193,15 @@ export function useItem(p: Progress, id: string) {
   return true;
 }
 
-/** Claims today's ★ bonus if it hasn't been claimed yet. Returns stars paid (0 if already claimed). */
-export function claimDaily(p: Progress, now = new Date()): number {
-  const w = walletOf(p), today = now.toISOString().slice(0, 10);
-  if (w.daily === today) return 0;
-  w.daily = today; p.stars += DAILY_STARS;
-  return DAILY_STARS;
+/** Claims today's ★ bonus if it hasn't been claimed yet: stars paid and the streak (0 stars if already claimed). */
+export function claimDaily(p: Progress, now = new Date()): { stars: number; streak: number } {
+  const w = walletOf(p), day = (t: Date) => t.toISOString().slice(0, 10), today = day(now);
+  if (w.daily === today) return { stars: 0, streak: w.streak ?? 1 };
+  const yesterday = day(new Date(now.getTime() - 86_400_000));
+  w.streak = w.daily === yesterday ? (w.streak ?? 1) + 1 : 1;
+  w.daily = today;
+  const stars = dailyStars(w.streak); p.stars += stars;
+  return { stars, streak: w.streak };
 }
 
 /** Bundles: a complete look, 20% off the pieces you don't own yet (so owning one piece never costs you). */
@@ -210,7 +216,11 @@ export const BUNDLES: Bundle[] = [
 export interface Offer { id: string; name: string; icon: string; text: string; price: number; full: number; looks: ShopItem[]; pieces: ShopItem[]; single: ShopItem | null } // looks: what you'd get; pieces: the whole set
 export function offerFor(id: string, owned: string[]): Offer | null {
   const item = itemById(id);
-  if (item) return item.currency === "rf" ? { id, name: item.name, icon: item.icon, text: item.text, price: item.price, full: item.price, looks: [item], pieces: [item], single: item } : null;
+  if (item) {
+    if (item.currency !== "rf") return null;
+    const off = featured().items.includes(item) ? FEATURED_OFF : 0;
+    return { id, name: item.name, icon: item.icon, text: item.text, price: Math.round(item.price * (1 - off)), full: item.price, looks: [item], pieces: [item], single: item };
+  }
   const b = BUNDLES.find(x => x.id === id); if (!b) return null;
   const pieces = b.items.map(i => itemById(i)!), missing = pieces.filter(i => !owned.includes(i.id));
   const full = missing.reduce((n, i) => n + i.price, 0);

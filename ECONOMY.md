@@ -6,13 +6,15 @@ Friend Planets never gives out RF. Players earn **★ Stars** by playing and spe
 
 | | ★ Stars | RF ($RAREFRIENDS) |
 |---|---|---|
-| Comes from | Playing: catches, harvests, treasures, quests, sports, ring races, landings, a daily visit bonus, and selling what you collect at the market | The player's wallet only |
+| Comes from | Playing: catches, harvests, treasures, quests, sports, ring races, landings, a daily visit bonus, three daily tasks, and selling what you collect at the market | The player's wallet only |
 | Buys | Bait, fertilizer, permanent upgrades (rod, hoverboard, seeds), starter hats and rocket paint | Premium hats, auras and rocket paint |
 | Real value | None (saved per browser) | Real, settled on-chain by Rare Friends |
 
 Premium items are cosmetic only. Hats and auras are shown to every player on the same planet, so they're for showing off, not for winning.
 
-A **featured shelf** spotlights three premium items each week and rotates every Monday (UTC). Items come back around later; nothing is permanently limited.
+A **featured shelf** spotlights three premium items each week at 15% off (`FEATURED_OFF`) and rotates every Monday (UTC). Items come back around later; nothing is permanently limited.
+
+The daily visit bonus grows with the player's streak of days in a row (25 ★ on day one, up to 60 ★), and three daily tasks pay 20–40 ★ each plus 50 ★ for all three.
 
 **Bundles** (Royal, Night sky, Party) sell a complete hat + aura + rocket look for 20% off the pieces the player doesn't own yet, so owning one piece never costs extra. A bundle is one order with `item: "bundle:…"` and the discounted price.
 

@@ -48,6 +48,7 @@ export interface HudState {
   book: { fish: { name: string; color: string; rarity: number; caught: number; best: number; here: boolean }[]; crops: { name: string; n: number }[]; trophies: { planet: string; sport: Sport }[]; treasures: { name: string; icon: string; rarity: number; n: number }[]; bugs: { name: string; color: string; rarity: number; n: number }[] };
   race: { countdown: number; time: number; ring: number; total: number; best: number | null } | null;
   daily: TaskView[];
+  streak: number;
   /** Shop state (see economy.ts). */
   wallet: { bag: { key: string; name: string; icon: string; n: number; price: number }[]; owned: string[]; equip: { rocket: string; hat: string; aura: string }; items: Record<string, number>; canFertilize: boolean; simulated: boolean; owner: number | null };
 }
@@ -1028,7 +1029,7 @@ export class Engine {
     this.camera.position.copy(this.cine.pos);
     this.host.onToast(`This is ${this.current.spec.name}: your Friend's own planet.`, "good");
     const daily = claimDaily(this.progress);
-    if (daily) { this.host.onProgress(this.progress); window.setTimeout(() => this.host.onToast(`☀️ Daily bonus: +${daily} ★`, "good"), 6500); }
+    if (daily.stars) { this.host.onProgress(this.progress); window.setTimeout(() => this.host.onToast(daily.streak > 1 ? `🔥 ${daily.streak}-day streak! Daily bonus +${daily.stars} ★` : `☀️ Daily bonus: +${daily.stars} ★ · come back tomorrow for more`, "good"), 6500); }
   }
   private faceShot(planet: Planet, height: number) {
     const c = planet.group.position, R = planet.R;
@@ -1448,6 +1449,7 @@ export class Engine {
       book: this.book(),
       wallet: this.walletHud(),
       daily: dailyTasks(this.progress),
+      streak: walletOf(this.progress).streak ?? 1,
     };
     const key = JSON.stringify(state);
     if (key !== this.hudKey) { this.hudKey = key; this.host.onHud(state); }

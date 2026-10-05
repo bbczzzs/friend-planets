@@ -7,7 +7,7 @@ import type { ActivityHud } from "./src/activities";
 import { makeGalaxy } from "./src/galaxy";
 import { FAMILY_NAMES, RARITY, RARITY_COLOR, SPORTS, perkOf } from "./src/data";
 import { loadProgress, saveProgress } from "./src/progress";
-import { BUNDLES, OWNER_CUT, SHOP, featured, offerFor, type ItemKind, type Offer, type ShopItem } from "./src/economy";
+import { BUNDLES, FEATURED_OFF, OWNER_CUT, SHOP, featured, offerFor, type ItemKind, type Offer, type ShopItem } from "./src/economy";
 import { loadPilot, type PilotSprite } from "./pilot";
 import { stillClips, fallbackSprite, spriteCanvas } from "./sprites";
 import { ValleyAudio } from "./audio";
@@ -73,7 +73,9 @@ function Coin() {
 
 /** A price chip: ★ for stars, the gold coin for RF. */
 function Price({ item }: { item: ShopItem }) {
-  return item.currency === "rf" ? <><Coin /> {item.price} RF</> : <>★ {item.price}</>;
+  if (item.currency !== "rf") return <>★ {item.price}</>;
+  const offer = offerFor(item.id, [])!;
+  return <><Coin /> {offer.price} RF{offer.full > offer.price && <s>{offer.full}</s>}</>;
 }
 
 function Meter({ m }: { m: NonNullable<ActivityHud["meter"]> }) {
@@ -376,7 +378,7 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
           {hud.wallet.owner !== null && <p className="fp-support">💛 RF purchases here send {Math.round(OWNER_CUT * 100)}% to <b>Friend #{hud.wallet.owner}</b>'s owner</p>}
           <div className="fp-tabs" role="tablist">{SHOP_TABS.map(t => <button key={t.id} type="button" role="tab" aria-selected={shopTab === t.id} className={shopTab === t.id ? "on" : ""} onClick={() => setShopTab(t.id)}>{t.label}{t.id === "sell" && hud.wallet.bag.length > 0 && <i className="fp-tabdot" />}</button>)}</div>
           {shopTab === "featured" ? (() => { const week = featured(); return <div className="fp-featured">
-            <p className="fp-feat-head"><span>This week</span><small>New picks in {week.endsInDays} day{week.endsInDays > 1 ? "s" : ""}</small></p>
+            <p className="fp-feat-head"><span>This week · {Math.round(FEATURED_OFF * 100)}% off</span><small>New picks in {week.endsInDays} day{week.endsInDays > 1 ? "s" : ""}</small></p>
             <div className="fp-feat-grid">{week.items.map(i => { const owned = hud.wallet.owned.includes(i.id); return <div key={i.id} className={`fp-feat${owned ? " owned" : ""}`}>
               <span className="fp-feat-ico">{i.icon}</span>
               <b>{i.name}</b><small>{i.text}</small>
@@ -440,7 +442,7 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
       {panel === "daily" && hud && <div className="fp-screen" onPointerDown={e => { if (e.target === e.currentTarget) setPanel(null); }}>
         <div className="fp-card fp-daily" role="dialog" aria-modal="true" aria-label="Today's tasks">
           <div className="fp-shop-head"><h2>Today</h2><div className="fp-shop-bal fp-starbal"><span className="fp-star">★</span><b>{hud.stars}</b></div><button type="button" className="fp-x" onClick={() => setPanel(null)} aria-label="Close">×</button></div>
-          <p className="fp-sim">Three new tasks every day. Finish all three for a bonus.</p>
+          <p className="fp-sim">{hud.streak > 1 ? <><b className="fp-streak">🔥 {hud.streak}-day streak</b> · </> : null}Three new tasks every day. Finish all three for a bonus. Come back daily: your visit bonus grows with your streak.</p>
           <ul className="fp-tasks">{hud.daily.map(t => <li key={t.id} className={t.done ? "done" : ""}>
             <i className="fp-check">{t.done ? "✓" : ""}</i>
             <span className="fp-task-txt"><b>{t.text}</b><span className="fp-task-bar"><em style={{ width: `${t.n / t.goal * 100}%` }} /></span></span>

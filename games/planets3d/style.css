@@ -437,3 +437,4 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
 .fp-co-card .fp-tryon img { width: 76px; height: 76px; }
 .fp-co-lines li { padding: 5px 2px; }
 .fp-co-price { margin: 4px 0 2px; }
+.fp-streak { color: var(--ember); font-weight: 800; }
