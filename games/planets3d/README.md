@@ -1,6 +1,6 @@
 # Friend Planets
 
-**Every Rare Friend is a planet.** Your verified Generations Friend's own on-chain pixels are raised across its tiny 3D planet as a giant black-and-white portrait. Walk all the way around it, then board your rocket, fly from the cockpit, land on other Friends' planets and play: fishing, farming, treasure digging, butterflies, a hoverboard ring race, and a sport against each planet's Friend. Everyone online shares the galaxy.
+**Every Rare Friend is a planet.** Your verified Generations Friend's own on-chain pixels are raised across its tiny 3D planet as a giant black-and-white portrait. Walk all the way around it, then board your rocket, fly from the cockpit, land on other Friends' planets and play: fishing, farming, treasure digging, butterflies, and a sport against each planet's Friend. Everyone online shares the galaxy.
 
 Built with **FriendSDK v0.1.4**, three.js 0.186 and Trystero (peer-to-peer). Rare Friends Vibeathon · **Character Spotlight**. Play earns ★ Stars; premium looks cost RF through a checkout that is simulated in this preview (no RF moves).
 
@@ -24,7 +24,6 @@ Built with **FriendSDK v0.1.4**, three.js 0.186 and Trystero (peer-to-peer). Rar
 - 🌱 **Farming:** 3×3 plots. Plant the planet's crop, come back when it's ripe (40 s; 20 s with Green thumb), harvest.
 - ⛏️ **Treasure:** dig at sparkling spots: pebbles, fossils, gold, and one rare treasure per family.
 - 🦋 **Butterflies:** six species, rare ones sparkle.
-- 🛹 **Hoverboard ring race:** ten rings looping all the way around the planet. A / D steer, Space jumps for high rings, Shift boosts. Best times are saved per planet.
 - **The planet's sport, against its Friend:**
   - ⚽ **Penalty shootout:** aim with WASD, hold to power up (too much goes over the bar), release; then you're in goal: read the run-up, move with A / D, dive. Five each, then sudden death.
   - 🎾 **Tennis:** move around your half, swing as the ball reaches you, hold A / D to aim. Real bounces, net and out calls, tennis scoring, first to 2 games.
@@ -38,9 +37,9 @@ Built with **FriendSDK v0.1.4**, three.js 0.186 and Trystero (peer-to-peer). Rar
 
 ## Rewards and rules
 
-**★ Stars (earned, never bought):** fish 5–20 ★ by rarity, harvest 3 ★, treasure and butterflies 4–16 ★, sports up to 10 ★ plus per-point stars and a planet trophy for a win (shown on the shelf by your house), ring race 6–20 ★, perfect landing 5 ★, each quest 10 ★, a daily visit bonus that grows with your streak (25–60 ★), three daily tasks 20–40 ★ each (+50 ★ for all three). The market buys what you collect: fish 10–110 ★, treasures 8–100 ★, butterflies 5–75 ★, crops 8 ★.
+**★ Stars (earned, never bought):** fish 5–20 ★ by rarity, harvest 3 ★, treasure and butterflies 4–16 ★, sports up to 10 ★ plus per-point stars and a planet trophy for a win (shown on the shelf by your house), perfect landing 5 ★, each quest 10 ★, a daily visit bonus that grows with your streak (25–60 ★), three daily tasks 20–40 ★ each (+50 ★ for all three). The market buys what you collect: fish 10–110 ★, treasures 8–100 ★, butterflies 5–75 ★, crops 8 ★.
 
-**Shop:** Stars buy bait (a rare fish in the pond next trip), fertilizer (ripens your crops), permanent upgrades (rod, hoverboard, seeds) and starter hats and paint. **Premium** hats, auras and rocket paint cost 25–150 RF, fixed price (this week's three featured items 15% off; complete sets 20% off), with a try-on in the checkout; other players see them; cosmetic only. RF is never paid out by the game: an RF purchase made on another Friend's planet sends 10% to that Friend's owner. In this preview payments are simulated (no wallet prompt, no RF moves); see [`ECONOMY.md`](../../ECONOMY.md) and `src/payments.ts`. No loot boxes or chance purchases. `game.json` holds the placeholder chance-game definition the SDK runtime requires; it is not used as a mechanic.
+**Shop:** Stars buy bait (a rare fish in the pond next trip), fertilizer (ripens your crops), permanent upgrades (rod, seeds) and starter hats and paint. **Premium** hats, auras and rocket paint cost 25–150 RF, fixed price (this week's three featured items 15% off; complete sets 20% off), with a try-on in the checkout; other players see them; cosmetic only. RF is never paid out by the game: an RF purchase made on another Friend's planet sends 10% to that Friend's owner. In this preview payments are simulated (no wallet prompt, no RF moves); see [`ECONOMY.md`](../../ECONOMY.md) and `src/payments.ts`. No loot boxes or chance purchases. `game.json` holds the placeholder chance-game definition the SDK runtime requires; it is not used as a mechanic.
 
 ## Online: how it works
 
@@ -65,7 +64,7 @@ Wallet: a browser wallet on **Robinhood mainnet (chain 4663)** holding a hardwir
 
 - `tsc` clean · `friendsdk check games/planets3d` valid.
 - `test-interaction.mjs` passes at 960 px and 390 px in the SDK automated runtime (mock wallet, fixture Friend #7730): play, walk, plant, a full fishing fight, boarding up the ramp and launch, boost, outside view, autopilot, the landing burn and walking out, a sport, the collection, pause through the runtime menu, sound.
-- Every activity played to a result by in-page bots (fishing catch, penalty shootout, tennis match, boxing KO, dig, butterfly, ring race).
+- Every activity played to a result by in-page bots (fishing catch, penalty shootout, tennis match, boxing KO, dig, butterfly).
 - Live chain: the production build, opened with a read-only stand-in wallet that reports a real holder's address, lists that holder's Friends from mainnet and opens the game.
 - Online: two browsers met on the same planet and saw each other's Friends, chat bubbles and emotes over the public relays.
 

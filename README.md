@@ -25,7 +25,7 @@ Rare Friends Vibeathon · **Character Spotlight** · FriendSDK **v0.1.4** · thr
 - **Its token number is its planet**: name, size, layout, rings, moons and sport. The same Friend's planet is the same for everyone.
 - **A galaxy of real Friends**: 16 planets to start, each belonging to a real Generations Friend; 🔭 Discover or type any token number to add more.
 - **Fly it yourself**: walk up the ramp, 3-2-1 from the cockpit with your Friend at the controls, steer or use autopilot, then fly the landing burn.
-- **Something to do everywhere**: fishing with a real fight, farming, treasure, butterflies, a ring race around the planet, and penalties, tennis or boxing against the planet's Friend.
+- **Something to do everywhere**: fishing with a real fight, farming, treasure, butterflies, and penalties, tennis or boxing against the planet's Friend.
 - **Alive**: planet Friends wander, greet you in their family's voice and react to your matches; Friends you visit come to your campfire; a quest list and collection book guide you.
 - **Online**: other players' Friends on your planet, chat and emotes, and a who's-online list that flies you to them. Peer to peer, no server, no wallet addresses shared.
 - **Economy**: play to earn ★ Stars (catches, harvests, quests, sports, three daily tasks) and sell what you collect at the market; Stars buy bait, fertilizer, upgrades and starter looks. Premium hats, glowing auras and rocket paint cost RF through a wallet-style checkout (try it on first), and other players see them. The game never gives out RF; buying on another Friend's planet sends 10% to its owner. Fixed prices, no loot boxes. Hand-off for the Rare Friends team: [`ECONOMY.md`](ECONOMY.md).
@@ -35,7 +35,7 @@ Full rules, controls, checks and known issues: [`games/planets3d/README.md`](gam
 ## Repository layout
 
 - `index.html`, `game.*`, `runtime.*`, `layout.css`, `net.js`, `assets/`: the built static preview served by GitHub Pages
-- `games/planets3d/`: the game (`index.tsx` UI; `src/engine.ts` world, rocket, landing, online; `planet.ts` planets and portraits; `activities.ts` fishing and sports; `extras.ts` treasure, butterflies and the ring race; `economy.ts` Stars, shop and orders; `payments.ts` where RF purchases connect; `tasks.ts` daily tasks; `aura.ts` auras; `look.ts` cel shading, outlines, grass, particles; `galaxy.ts`, `data.ts`, `progress.ts`, `net.ts`)
+- `games/planets3d/`: the game (`index.tsx` UI; `src/engine.ts` world, rocket, landing, online; `planet.ts` planets and portraits; `activities.ts` fishing and sports; `extras.ts` treasure and butterflies; `economy.ts` Stars, shop and orders; `payments.ts` where RF purchases connect; `tasks.ts` daily tasks; `aura.ts` auras; `look.ts` cel shading, outlines, grass, particles; `galaxy.ts`, `data.ts`, `progress.ts`, `net.ts`)
 - `host/net.ts`: the online bridge that runs in the host page (the SDK keeps the game frame offline)
 - `tools/add-net.mjs`: adds the online bridge to the build
 - `test-interaction.mjs`: interaction test in the SDK's automated runtime
