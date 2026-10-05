@@ -18,6 +18,11 @@ The daily visit bonus grows with the player's streak of days in a row (25 ★ on
 
 **Bundles** (Royal, Night sky, Party) sell a complete hat + aura + rocket look for 20% off the pieces the player doesn't own yet, so owning one piece never costs extra. A bundle is one order with `item: "bundle:…"` and the discounted price.
 
+## Levels and the Galaxy Pass
+
+- **Explorer level:** every ★ earned is XP. Each level-up pays a ★ bonus and a title (Newcomer → Cosmic Icon); levels 5, 10, 15, 20, 30 and 40 unlock looks that can't be bought (`LEVEL_UNLOCKS` in `progression.ts`). Other players see your level and title online.
+- **Galaxy Pass:** a monthly season (UTC calendar month) of 20 tiers, 120 ★ earned per tier. The free track pays Stars, bait and fertilizer. The premium track costs **99 RF once per season** (an order with `item: "pass:YYYY-MM"`) and adds four season-only looks plus 16 more Stars and item rewards; tiers already reached unlock at once. Every reward is listed in the pass screen.
+
 ## How players earn RF
 
 Only from other players' purchases, so nobody has to fund payouts and bots have nothing to farm:

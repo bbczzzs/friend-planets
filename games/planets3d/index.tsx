@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GameComponentProps } from "@rarefriends/friendsdk/runtime";
-import { Engine, type HudState, type ToastKind } from "./src/engine";
+import { Engine, type HudState, type LevelUp, type ToastKind } from "./src/engine";
+import { PASS_PRICE, passOffer, rewardLabel } from "./src/progression";
 import type { ActivityHud } from "./src/activities";
 import { makeGalaxy } from "./src/galaxy";
 import { FAMILY_NAMES, RARITY, RARITY_COLOR, SPORTS, perkOf } from "./src/data";
@@ -101,7 +102,7 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
   const [phase, setPhase] = useState<Phase>("loading"), [failure, setFailure] = useState("");
   const [pilot, setPilot] = useState<PilotSprite | null>(null);
   const [hud, setHud] = useState<HudState | null>(null), [toasts, setToasts] = useState<Toast[]>([]);
-  const [muted, setMuted] = useState(true), [panel, setPanel] = useState<"help" | "book" | "online" | "shop" | "daily" | null>(null), [touch, setTouch] = useState(false);
+  const [muted, setMuted] = useState(true), [panel, setPanel] = useState<"help" | "book" | "online" | "shop" | "daily" | "pass" | null>(null), [touch, setTouch] = useState(false);
   const [chat, setChat] = useState<string | null>(null);
   const [visitId, setVisitId] = useState("");
   const [slide, setSlide] = useState(0);
@@ -109,6 +110,7 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
   const [checkout, setCheckout] = useState<string | null>(null), [paying, setPaying] = useState(false);
   const [emotes, setEmotes] = useState(false);
   const [unlocked, setUnlocked] = useState<string | null>(null);
+  const [levelUp, setLevelUp] = useState<LevelUp | null>(null);
   const nudged = useRef(new Set<string>());
 
   // A one-time tip the first time your Stars cover something new in the shop.
@@ -146,6 +148,7 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
         const world = makeGalaxy(friendId, art.familyId, art.clips.idle.down[0]);
         created = new Engine({ canvas: canvas.current!, stickBase: stickBase.current!, stickKnob: stickKnob.current! }, world, art.clips, friendId, {
           onHud: setHud,
+          onLevelUp: info => setLevelUp(info),
           onToast: toast,
           onProgress: p => saveProgress(friendId, p),
         }, kit, loadProgress(friendId));
@@ -221,6 +224,11 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
             </button>}
           </div>
           <div className="fp-hud-r">
+            <button type="button" className={`fp-pill fp-lv${hud.pass.claimable ? " ping" : ""}`} onClick={() => setPanel("pass")} aria-label={`Level ${hud.level.level}, ${hud.level.title}. Open the Galaxy Pass`} title="Your level and the Galaxy Pass">
+              <i className="fp-ring" style={{ ["--p" as string]: `${hud.level.into / hud.level.need * 100}%` }}>{hud.level.level}</i>
+              <span>{hud.level.title}</span>
+              {hud.pass.claimable > 0 && <small className="fp-badge-dot">{hud.pass.claimable}</small>}
+            </button>
             <button type="button" className="fp-pill fp-rf" onClick={() => { setShopTab("featured"); setPanel("shop"); }} aria-label={`${hud.stars} Stars. Open the Shop`} title="Stars: earned by playing. Tap for the shop."><span className="fp-star">★</span><b>{hud.stars}</b><small>Shop</small></button>
             {act ? <button type="button" className="fp-pill fp-leave" onClick={() => engine.current?.endActivity()}><kbd>Esc</kbd> Leave</button>
               : <div className="fp-bar-r" role="toolbar" aria-label="Menu">
@@ -310,12 +318,21 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
         </div>}
       </>}
 
-      {unlocked && (() => { const offer = offerFor(unlocked, []); if (!offer) return null; return <div className="fp-unlock" onPointerDown={() => setUnlocked(null)} role="dialog" aria-label="New look unlocked">
+      {levelUp && <div className="fp-unlock" onPointerDown={() => setLevelUp(null)} role="dialog" aria-label="Level up">
+        <div className="fp-unlock-card fp-levelup">
+          <small>Level up</small>
+          <div className="fp-bigring"><b>{levelUp.level}</b></div>
+          <h2>{levelUp.title}</h2>
+          <p>+{levelUp.stars} ★{levelUp.unlocked ? <> · unlocked <b>{levelUp.unlocked.icon} {levelUp.unlocked.name}</b>, a look you can't buy</> : null}</p>
+          <button type="button" className="fp-cta fp-gold" onClick={() => { const item = levelUp.unlocked; setLevelUp(null); if (item) engine.current?.equip(item.id); }}>{levelUp.unlocked ? "Wear it" : "Nice!"}</button>
+        </div>
+      </div>}
+      {unlocked && (() => { const offer = unlocked.startsWith("pass:") ? passOffer() : offerFor(unlocked, []); if (!offer) return null; return <div className="fp-unlock" onPointerDown={() => setUnlocked(null)} role="dialog" aria-label="New look unlocked">
         <div className="fp-unlock-card">
           <small>{offer.single ? "New look unlocked" : "Set unlocked"}</small>
           <OfferLook pilot={pilot} offer={offer} />
           <h2>{offer.name}</h2>
-          <p>{offer.looks.every(l => l.kind === "rocket") ? "Your rocket has a fresh coat of paint." : "You're wearing it now. Everyone on your planet can see it."}</p>
+          <p>{offer.id.startsWith("pass:") ? "Premium rewards you've reached are ready to claim in the pass." : offer.looks.every(l => l.kind === "rocket") ? "Your rocket has a fresh coat of paint." : "You're wearing it now. Everyone on your planet can see it."}</p>
           <button type="button" className="fp-cta fp-gold" onClick={() => setUnlocked(null)}>Nice!</button>
         </div>
       </div>; })()}
@@ -403,17 +420,18 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
             const short = i.currency === "star" && hud.stars < i.price;
             return <li key={i.id} className={`${worn ? "worn" : ""}${i.currency === "rf" ? " premium" : ""}`}>
               <span className="fp-item-ico">{i.icon}</span>
-              <span className="fp-item-txt"><b>{i.name}{count ? ` ×${count}` : ""}{i.currency === "rf" && <em className="fp-tag">Premium</em>}</b><small>{i.text}</small></span>
+              <span className="fp-item-txt"><b>{i.name}{count ? ` ×${count}` : ""}{i.currency === "rf" && <em className="fp-tag">Premium</em>}{i.currency === "earned" && <em className="fp-tag earned">{i.how?.startsWith("Galaxy") ? "Pass" : "Earned"}</em>}</b><small>{i.text}</small></span>
               {i.kind === "item" ? <span className="fp-item-btns">
                   {i.id === "item:fert" && count > 0 && <button type="button" className="fp-owned" disabled={!hud.wallet.canFertilize} onClick={() => engine.current?.fertilize()} title={hud.wallet.canFertilize ? "Ripen your crops now" : "Stand on a planet with growing crops"}>Use</button>}
                   <button type="button" className="fp-buy" disabled={short} onClick={() => engine.current?.buy(i.id)}><Price item={i} /></button>
                 </span>
                 : worn ? <span className="fp-item-tag">{i.kind === "gear" ? "Owned" : "Wearing"}</span>
                 : owned ? (i.kind === "gear" ? <span className="fp-item-tag">Owned</span> : <button type="button" className="fp-owned" onClick={() => engine.current?.equip(i.id)}>Wear</button>)
+                : i.currency === "earned" ? <button type="button" className="fp-lock" onClick={() => setPanel("pass")}>🔒 {i.how}</button>
                 : <button type="button" className={`fp-buy${i.currency === "rf" ? " rf" : ""}`} disabled={short} onClick={() => i.currency === "rf" ? setCheckout(i.id) : engine.current?.buy(i.id)}><Price item={i} /></button>}
             </li>;
           })}</ul>}
-          {checkout && (() => { const offer = offerFor(checkout, hud.wallet.owned); if (!offer) return null; const owner = hud.wallet.owner, cut = Math.round(offer.price * OWNER_CUT * 100) / 100; return <div className="fp-checkout" role="dialog" aria-modal="true" aria-label="Confirm purchase">
+          {checkout && (() => { const offer = checkout.startsWith("pass:") ? passOffer() : offerFor(checkout, hud.wallet.owned); if (!offer) return null; const owner = hud.wallet.owner, cut = Math.round(offer.price * OWNER_CUT * 100) / 100; return <div className="fp-checkout" role="dialog" aria-modal="true" aria-label="Confirm purchase">
             <div className="fp-co-card">
               <OfferLook pilot={pilot} offer={offer} />
               <h3>{offer.name}</h3>
@@ -425,6 +443,46 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
                 <li><span>Paid with</span><b>$RAREFRIENDS</b></li>
                 {owner !== null && <li><span>Supports Friend #{owner}'s owner</span><b>{cut} RF</b></li>}
                 <li><span>Yours to keep</span><b>Forever</b></li>
+              </ul>
+              {hud.wallet.simulated && <p className="fp-co-sim">Preview: payments are simulated, no RF leaves your wallet.</p>}
+              <div className="fp-co-btns">
+                <button type="button" className="fp-cta fp-ghost" disabled={paying} onClick={() => setCheckout(null)}>Cancel</button>
+                <button type="button" className="fp-cta fp-gold" disabled={paying} onClick={async () => { setPaying(true); try { if (await engine.current?.checkout(offer.id)) setUnlocked(offer.id); } finally { setPaying(false); setCheckout(null); } }}>{paying ? "Confirming…" : `Pay ${offer.price} RF`}</button>
+              </div>
+            </div>
+          </div>; })()}
+        </div>
+      </div>}
+      {panel === "pass" && hud && <div className="fp-screen" onPointerDown={e => { if (e.target === e.currentTarget && !checkout) setPanel(null); }}>
+        <div className="fp-card fp-pass" role="dialog" aria-modal="true" aria-label="Galaxy Pass">
+          <div className="fp-shop-head"><h2>Galaxy Pass</h2><div className="fp-shop-bal fp-starbal"><span className="fp-star">★</span><b>{hud.stars}</b></div><button type="button" className="fp-x" onClick={() => setPanel(null)} aria-label="Close">×</button></div>
+          <div className="fp-me">
+            <i className="fp-ring big" style={{ ["--p" as string]: `${hud.level.into / hud.level.need * 100}%` }}>{hud.level.level}</i>
+            <span className="fp-me-txt"><b>{hud.pass.premium ? "✦ " : ""}{hud.level.title}</b><small>{hud.level.into}/{hud.level.need} ★ to level {hud.level.level + 1}{hud.level.next ? <> · level {hud.level.next.level} unlocks {hud.level.next.icon} {hud.level.next.name}</> : null}</small></span>
+          </div>
+          <p className="fp-feat-head"><span>{hud.pass.name}</span><small>Ends in {hud.pass.endsInDays} day{hud.pass.endsInDays > 1 ? "s" : ""} · every ★ you earn fills it</small></p>
+          <div className="fp-track" role="list">{hud.pass.tiers.map(t => { const f = rewardLabel(t.free), pr = rewardLabel(t.premium), cur = !t.reached && (t.tier === 1 || hud.pass.tiers[t.tier - 2].reached); return <div key={t.tier} role="listitem" className={`fp-tier${t.reached ? " reached" : ""}${cur ? " current" : ""}`}>
+            <span className="fp-tier-n">{t.tier}</span>
+            <span className={`fp-cell free${t.freeClaimed ? " claimed" : t.reached ? " ready" : ""}`} title={f.text}><i>{f.icon}</i><small>{f.text}</small></span>
+            <span className={`fp-cell prem${t.premiumClaimed ? " claimed" : t.reached && hud.pass.premium ? " ready" : ""}${hud.pass.premium ? "" : " locked"}`} title={pr.text}><i>{pr.icon}</i><small>{pr.text}</small></span>
+            {cur && <span className="fp-tier-bar"><em style={{ width: `${(hud.pass.xp - (t.tier - 1) * hud.pass.tierXp) / hud.pass.tierXp * 100}%` }} /></span>}
+          </div>; })}</div>
+          <div className="fp-pass-foot">
+            <button type="button" className="fp-cta" disabled={!hud.pass.claimable} onClick={() => { const got = engine.current?.claimPass() ?? []; if (got.length) toast(`🎁 Claimed ${got.length} reward${got.length > 1 ? "s" : ""}`, "good"); }}>{hud.pass.claimable ? `Claim ${hud.pass.claimable} reward${hud.pass.claimable > 1 ? "s" : ""}` : "Keep playing to fill tiers"}</button>
+            {!hud.pass.premium && <button type="button" className="fp-cta fp-gold" onClick={() => setCheckout(passOffer().id)}>Unlock premium · {PASS_PRICE} RF</button>}
+          </div>
+          {!hud.pass.premium && <p className="fp-sim">Premium adds the bottom row: {passOffer().looks.map(l => `${l.icon} ${l.name}`).join(", ")} (season-only) and more Stars and items. Rewards you've already reached unlock straight away.</p>}
+          {checkout && (() => { const offer = checkout.startsWith("pass:") ? passOffer() : offerFor(checkout, hud.wallet.owned); if (!offer) return null; const owner = hud.wallet.owner, cut = Math.round(offer.price * OWNER_CUT * 100) / 100; return <div className="fp-checkout" role="dialog" aria-modal="true" aria-label="Confirm purchase">
+            <div className="fp-co-card">
+              <OfferLook pilot={pilot} offer={offer} />
+              <h3>{offer.name}</h3>
+              <p>{offer.text}</p>
+              <div className="fp-co-price"><Coin /><b>{offer.price}</b> RF</div>
+              <ul className="fp-co-lines">
+                <li><span>Includes</span><b>{offer.looks.map(l => l.icon).join(" ")} + 16 more</b></li>
+                <li><span>Paid with</span><b>$RAREFRIENDS</b></li>
+                {owner !== null && <li><span>Supports Friend #{owner}'s owner</span><b>{cut} RF</b></li>}
+                <li><span>Season</span><b>{hud.pass.name}</b></li>
               </ul>
               {hud.wallet.simulated && <p className="fp-co-sim">Preview: payments are simulated, no RF leaves your wallet.</p>}
               <div className="fp-co-btns">

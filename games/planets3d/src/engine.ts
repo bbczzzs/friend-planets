@@ -14,6 +14,7 @@ import { SHOP, canBuy, claimDaily, goodsOf, grant, has, itemById, offerFor, sell
 import { payments } from "./payments";
 import { Aura } from "./aura";
 import { countTask, dailyTasks, type TaskEvent, type TaskView } from "./tasks";
+import { LEVEL_UNLOCKS, LEVEL_UP_STARS, TIER_XP, levelOf, nextUnlock, passOffer, passTiers, seasonNow, seasonOf, titleFor, type PassReward, type TierView } from "./progression";
 import { Blocks, glowMaterial, litMaterial } from "./models";
 import { CAMERA, OrbitCamera } from "./camera";
 import { Input } from "./input";
@@ -48,11 +49,15 @@ export interface HudState {
   book: { fish: { name: string; color: string; rarity: number; caught: number; best: number; here: boolean }[]; crops: { name: string; n: number }[]; trophies: { planet: string; sport: Sport }[]; treasures: { name: string; icon: string; rarity: number; n: number }[]; bugs: { name: string; color: string; rarity: number; n: number }[] };
   daily: TaskView[];
   streak: number;
+  level: { level: number; into: number; need: number; title: string; next: { level: number; name: string; icon: string } | null };
+  pass: { name: string; endsInDays: number; xp: number; tierXp: number; premium: boolean; tiers: TierView[]; claimable: number };
   /** Shop state (see economy.ts). */
   wallet: { bag: { key: string; name: string; icon: string; n: number; price: number }[]; owned: string[]; equip: { rocket: string; hat: string; aura: string }; items: Record<string, number>; canFertilize: boolean; simulated: boolean; owner: number | null };
 }
+export interface LevelUp { level: number; title: string; unlocked: ShopItem | null; stars: number }
 export interface EngineHost {
   onHud(state: HudState): void;
+  onLevelUp?(info: LevelUp): void;
   onToast(text: string, kind: ToastKind): void;
   onProgress(progress: Progress): void;
 }
@@ -335,14 +340,14 @@ export class Engine {
     const onPlanet = this.mode === "walk" || this.mode === "play" || this.mode === "board" || this.mode === "intro";
     const r3 = (v: THREE.Vector3): [number, number, number] => [Math.round(v.x * 1e4) / 1e4, Math.round(v.y * 1e4) / 1e4, Math.round(v.z * 1e4) / 1e4];
     const d = this.moveDir.lengthSq() > 0 ? this.moveDir.clone().normalize() : new THREE.Vector3(1, 0, 0);
-    this.net.state({ f: Number(this.friendId), fam: this.homeFamily % 9, p: onPlanet ? this.current.spec.id : 0, n: r3(this.n), d: r3(d), m: this.moving && this.mode === "walk", mode: this.mode, act: this.activity?.kind ?? "", h: walletOf(this.progress).equip.hat, a: walletOf(this.progress).equip.aura });
+    this.net.state({ f: Number(this.friendId), fam: this.homeFamily % 9, p: onPlanet ? this.current.spec.id : 0, n: r3(this.n), d: r3(d), m: this.moving && this.mode === "walk", mode: this.mode, act: this.activity?.kind ?? "", h: walletOf(this.progress).equip.hat, a: walletOf(this.progress).equip.aura, lv: levelOf(this.progress.xp ?? 0).level, gp: seasonOf(this.progress).premium });
   }
   private peerState(id: string, st: PeerState) {
     let p = this.peers.get(id);
     if (!p) {
       const model = new FriendBillboard(stillClips(fallbackSprite(st.f)));
       const label = new Label(0.42), bubble = new Label(0.36), shadow = blobShadow(0.8), hat = new Label(0.8);
-      label.set([{ text: `Friend #${st.f}`, color: "#7db4db", size: 34 }]);
+      label.set([{ text: `Friend #${st.f}`, color: "#f7f4ec", size: 34 }]);
       bubble.sprite.visible = false;
       this.scene.add(model.group, label.sprite, bubble.sprite, shadow, hat.sprite);
       p = { id, s: st, model, label, bubble, bubbleT: 0, shadow, hat, hatY: 2, aura: null, auraId: "", n: new THREE.Vector3(...st.n).normalize(), world: new THREE.Vector3(), hop: 0, vy: 0, clipsFor: 0, seen: this.time };
@@ -360,6 +365,7 @@ export class Engine {
     }
     if (p.s.p !== st.p) p.n.set(...st.n).normalize();
     p.s = st; p.seen = this.time;
+    if (st.lv) p.label.set([{ text: `Friend #${st.f}`, color: "#f7f4ec", size: 34 }, { text: `Lv ${st.lv} · ${st.gp ? "✦ " : ""}${titleFor(st.lv)}`, color: st.gp ? "#f2c46b" : "#c9d1e0", size: 24 }]);
     const hat = hatFor(st.h);
     if (hat) p.hat.set([{ text: hat, size: 40 }]);
     p.hat.sprite.userData.on = !!hat;
@@ -596,8 +602,39 @@ export class Engine {
     this.draw(this.paused ? 0 : dt);
   };
 
+  private lastStars = -1;
+  /** Stars only go down when spent, so every rise is earned: count it toward your level and the season. */
+  private trackXp() {
+    const p = this.progress, now = p.stars;
+    if (this.lastStars < 0) {
+      // Saves from before levels existed: their Stars so far count, and milestone looks already reached are given.
+      this.lastStars = now; p.xp ??= now; p.lvl ??= levelOf(p.xp).level;
+      for (const [l, id] of Object.entries(LEVEL_UNLOCKS)) if (Number(l) <= p.lvl && !walletOf(p).owned.includes(id)) walletOf(p).owned.push(id);
+      return;
+    }
+    const gained = now - this.lastStars; this.lastStars = now;
+    if (gained <= 0) return;
+    p.xp = (p.xp ?? 0) + gained;
+    seasonOf(p).xp += gained;
+    const { level } = levelOf(p.xp);
+    if (level > (p.lvl ?? 1)) {
+      let unlocked: ShopItem | null = null;
+      for (let l = (p.lvl ?? 1) + 1; l <= level; l++) {
+        const id = LEVEL_UNLOCKS[l];
+        if (id && !walletOf(p).owned.includes(id)) { walletOf(p).owned.push(id); unlocked = itemById(id) ?? null; }
+      }
+      const stars = LEVEL_UP_STARS * (level - (p.lvl ?? 1));
+      // The bonus is a gift, not XP (or one level-up would chain into the next).
+      p.lvl = level; p.stars += stars; this.lastStars = p.stars;
+      this.audio?.fanfare(); this.celebrate("⬆️");
+      this.host.onLevelUp?.({ level, title: titleFor(level), unlocked, stars });
+      this.sendState();
+    }
+    this.host.onProgress(p);
+  }
   private update(dt: number) {
     this.time += dt;
+    this.trackXp();
     TIME.value = this.time;
     this.rocket.update(dt);
     for (const p of this.planets) p.update(dt, this.camera.position);
@@ -1330,6 +1367,7 @@ export class Engine {
   }
   /** Pays for an RF item or bundle through payments.ts; the looks are handed over only when that succeeds. */
   async checkout(id: string): Promise<boolean> {
+    if (id.startsWith("pass:")) return this.buyPass();
     const offer = offerFor(id, walletOf(this.progress).owned), order = this.orderFor(id);
     if (offer?.single) { const r = canBuy(this.progress, id); if (!r.ok) { this.host.onToast(r.why, "bad"); return false; } }
     if (!offer || !order) { this.host.onToast(offer ? "You already own all of that." : "That isn't sold for RF.", "bad"); return false; }
@@ -1343,6 +1381,43 @@ export class Engine {
     for (const piece of offer.pieces) if (piece.kind === "hat" || piece.kind === "aura" || piece.kind === "rocket") w.equip[piece.kind] = piece.id;
     this.gotItem(offer, order);
     return true;
+  }
+  /** The Galaxy Pass premium track: one RF purchase per season; rewards already reached become claimable at once. */
+  private async buyPass(): Promise<boolean> {
+    const st = seasonOf(this.progress), offer = passOffer();
+    if (st.premium) { this.host.onToast("You already have this season's Galaxy Pass.", "info"); return false; }
+    const owner = this.current.spec.home ? null : this.current.spec.id;
+    const order: Order = { id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`, item: offer.id, price: offer.price, buyer: String(this.friendId), planetOwner: owner, split: splitFor(offer.price, owner), at: Date.now() };
+    const paid = await payments.purchase(order);
+    if (!this.running) return false;
+    if (!paid.ok) { this.host.onToast(paid.why, "bad"); this.audio?.miss(); return false; }
+    order.tx = paid.tx;
+    const w = walletOf(this.progress); w.orders = [order, ...w.orders].slice(0, 50);
+    st.premium = true;
+    this.host.onToast("🎟️ Galaxy Pass unlocked! Claim your premium rewards.", "good");
+    this.audio?.fanfare(); this.celebrate("🎟️");
+    this.host.onProgress(this.progress); this.sendState(); this.emitHud();
+    return true;
+  }
+  /** Claims every reached pass reward (free, and premium if you have the pass). Returns what was given. */
+  claimPass(): PassReward[] {
+    const p = this.progress, st = seasonOf(p), got: PassReward[] = [];
+    const give = (r: PassReward) => {
+      if (r.stars) p.stars += r.stars;
+      const item = r.item ? itemById(r.item) : null;
+      if (item) {
+        if (item.kind === "item") { const w = walletOf(p); w.items[item.id] = (w.items[item.id] ?? 0) + (r.count ?? 1); }
+        else if (!walletOf(p).owned.includes(item.id)) walletOf(p).owned.push(item.id);
+      }
+      got.push(r);
+    };
+    for (const t of passTiers(p)) {
+      if (!t.reached) continue;
+      if (!t.freeClaimed) { give(t.free); st.claimed.push(`f${t.tier}`); }
+      if (st.premium && !t.premiumClaimed) { give(t.premium); st.claimed.push(`p${t.tier}`); }
+    }
+    if (got.length) { this.audio?.fanfare(); this.celebrate("🎁"); this.host.onProgress(p); this.emitHud(); }
+    return got;
   }
   private gotItem(item: ShopItem | Offer, order: Order | null) {
     const looks = "pieces" in item ? item.pieces : [item];
@@ -1437,6 +1512,8 @@ export class Engine {
       book: this.book(),
       wallet: this.walletHud(),
       daily: dailyTasks(this.progress),
+      level: (() => { const l = levelOf(this.progress.xp ?? 0), n = nextUnlock(l.level); return { ...l, title: titleFor(l.level), next: n ? { level: n.level, name: n.item.name, icon: n.item.icon } : null }; })(),
+      pass: (() => { const s = seasonNow(), st = seasonOf(this.progress), tiers = passTiers(this.progress); return { name: s.name, endsInDays: s.endsInDays, xp: st.xp, tierXp: TIER_XP, premium: st.premium, tiers, claimable: tiers.filter(t => t.reached && (!t.freeClaimed || (st.premium && !t.premiumClaimed))).length }; })(),
       streak: walletOf(this.progress).streak ?? 1,
     };
     const key = JSON.stringify(state);

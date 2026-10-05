@@ -7,7 +7,7 @@
  */
 import { joinRoom, selfId } from "trystero";
 
-type State = { f: number; fam: number; p: number; n: [number, number, number]; d: [number, number, number]; m: boolean; mode: string; act: string; h?: string; a?: string };
+type State = { f: number; fam: number; p: number; n: [number, number, number]; d: [number, number, number]; m: boolean; mode: string; act: string; h?: string; a?: string; lv?: number; gp?: boolean };
 type Room = ReturnType<typeof joinRoom>;
 
 const APP = "friend-planets-rarefriends-vibeathon-2026";
@@ -38,8 +38,9 @@ function cleanState(s: unknown): State | null {
   const act = typeof o.act === "string" && /^[a-z]{0,8}$/.test(o.act) ? o.act : "";
   const h = typeof o.h === "string" && /^hat:[a-z]{1,10}$/.test(o.h) ? o.h : "";
   const a = typeof o.a === "string" && /^aura:[a-z]{1,10}$/.test(o.a) ? o.a : "";
+  const lv = Math.floor(num(o.lv, 1, 99) ?? 1), gp = o.gp === true;
   if (f === null || fam === null || p === null || !n || !d || !mode) return null;
-  return { f: Math.floor(f), fam: Math.floor(fam), p: Math.floor(p), n, d, m: o.m === true, mode, act, h, a };
+  return { f: Math.floor(f), fam: Math.floor(fam), p: Math.floor(p), n, d, m: o.m === true, mode, act, h, a, lv, gp };
 }
 function cleanText(t: unknown) {
   if (typeof t !== "string") return null;

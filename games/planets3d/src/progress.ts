@@ -2,6 +2,7 @@
 import type { Sport } from "./data";
 import type { Wallet } from "./economy";
 import type { TaskState } from "./tasks";
+import type { SeasonState } from "./progression";
 
 export interface PlotState { crop: string | null; plantedAt: number }
 export interface Progress {
@@ -18,6 +19,9 @@ export interface Progress {
   bugs?: Record<string, number>;
   wallet?: Wallet; // see economy.ts
   tasks?: TaskState; // today's daily tasks, see tasks.ts
+  xp?: number; // every ★ ever earned: your explorer level (progression.ts)
+  lvl?: number; // the last level celebrated
+  season?: SeasonState; // this month's Galaxy Pass
 }
 
 export const GROW_MS = 40_000;

@@ -34,11 +34,12 @@ const SELL_BY_RARITY = {
 } as const;
 const CROP_PRICE = 8;
 
-export type Currency = "star" | "rf";
+/** "earned" looks are never sold: they come from levels or the Galaxy Pass (see `how`). */
+export type Currency = "star" | "rf" | "earned";
 export type ItemKind = "hat" | "rocket" | "aura" | "item" | "gear";
 export interface ShopItem {
   id: string; kind: ItemKind; name: string; icon: string; price: number; currency: Currency; text: string;
-  colors?: [string, string]; hat?: string; aura?: { color: string; sparkle: string };
+  colors?: [string, string]; hat?: string; aura?: { color: string; sparkle: string }; how?: string;
 }
 
 export const SHOP: ShopItem[] = [
@@ -65,6 +66,22 @@ export const SHOP: ShopItem[] = [
   { id: "aura:meadow", kind: "aura", name: "Meadow", icon: "🍀", price: 35, currency: "rf", text: "Fresh green glow", aura: { color: "#8edb7c", sparkle: "#e9ffd8" } },
   { id: "aura:starlight", kind: "aura", name: "Starlight", icon: "✨", price: 80, currency: "rf", text: "Bright white stars that follow you", aura: { color: "#f7f4ec", sparkle: "#ffffff" } },
   { id: "aura:golden", kind: "aura", name: "Golden", icon: "🌟", price: 140, currency: "rf", text: "The rarest glow in the galaxy", aura: { color: "#f2c46b", sparkle: "#fff1a8" } },
+  // Earned, never sold: explorer levels…
+  { id: "hat:pin", kind: "hat", name: "Star pin", icon: "⭐", price: 0, currency: "earned", how: "Reach level 5", text: "A little star for a rising explorer", hat: "⭐" },
+  { id: "hat:medal", kind: "hat", name: "Explorer medal", icon: "🏅", price: 0, currency: "earned", how: "Reach level 10", text: "Proof you've seen the galaxy", hat: "🏅" },
+  { id: "hat:laurel", kind: "hat", name: "Laurel", icon: "🌿", price: 0, currency: "earned", how: "Reach level 30", text: "Worn only by legends", hat: "🌿" },
+  { id: "aura:wayfinder", kind: "aura", name: "Wayfinder", icon: "🧭", price: 0, currency: "earned", how: "Reach level 15", text: "A calm teal glow that knows the way", aura: { color: "#6fe3c8", sparkle: "#e8fff8" } },
+  { id: "aura:legend", kind: "aura", name: "Legend", icon: "🏵️", price: 0, currency: "earned", how: "Reach level 40", text: "Warm light for the galaxy's finest", aura: { color: "#ffd27a", sparkle: "#ffffff" } },
+  { id: "rocket:veteran", kind: "rocket", name: "Veteran", icon: "🎖️", price: 0, currency: "earned", how: "Reach level 20", text: "Bronze and brass for seasoned pilots", colors: ["#8b5a2b", "#e8c07d"] },
+  // …and the Galaxy Pass (season-only looks, two sets that alternate by month).
+  { id: "hat:sunhat", kind: "hat", name: "Sunhat", icon: "👒", price: 0, currency: "earned", how: "Galaxy Pass reward", text: "Season-only: lazy days on the meadow", hat: "👒" },
+  { id: "hat:comet", kind: "hat", name: "Comet", icon: "🌠", price: 0, currency: "earned", how: "Galaxy Pass reward", text: "Season-only: a shooting star on your head", hat: "🌠" },
+  { id: "hat:shroom", kind: "hat", name: "Shroom cap", icon: "🍄", price: 0, currency: "earned", how: "Galaxy Pass reward", text: "Season-only: straight from the moss garden", hat: "🍄" },
+  { id: "hat:disco", kind: "hat", name: "Disco ball", icon: "🪩", price: 0, currency: "earned", how: "Galaxy Pass reward", text: "Season-only: the life of every planet", hat: "🪩" },
+  { id: "aura:nebula", kind: "aura", name: "Nebula", icon: "🌌", price: 0, currency: "earned", how: "Galaxy Pass reward", text: "Season-only: soft violet stardust", aura: { color: "#b39dff", sparkle: "#efe6ff" } },
+  { id: "aura:comet", kind: "aura", name: "Comet tail", icon: "☄️", price: 0, currency: "earned", how: "Galaxy Pass reward", text: "Season-only: icy blue sparks", aura: { color: "#86b6ff", sparkle: "#e6f0ff" } },
+  { id: "rocket:aurora", kind: "rocket", name: "Aurora", icon: "🌈", price: 0, currency: "earned", how: "Galaxy Pass reward", text: "Season-only: northern-lights green", colors: ["#3fae9a", "#b9ffde"] },
+  { id: "rocket:nebula", kind: "rocket", name: "Nebula", icon: "🔮", price: 0, currency: "earned", how: "Galaxy Pass reward", text: "Season-only: deep space blue", colors: ["#5b4bdb", "#9fd8ff"] },
   // Items you use up.
   { id: "item:bait", kind: "item", name: "Golden bait", icon: "🪱", price: 40, currency: "star", text: "Your next fishing trip has a rare fish in the pond. Catch it if you can!" },
   { id: "item:fert", kind: "item", name: "Fertilizer", icon: "🧪", price: 25, currency: "star", text: "Instantly ripens every crop on the planet you're on" },
@@ -165,6 +182,7 @@ export function canBuy(p: Progress, id: string): BuyCheck {
   const w = walletOf(p), item = itemById(id);
   if (!item) return { ok: false, why: "That item doesn't exist." };
   if (item.kind !== "item" && w.owned.includes(id)) return { ok: false, why: "You already own that." };
+  if (item.currency === "earned") return { ok: false, why: `${item.how ?? "Earned by playing"}: it can't be bought.` };
   if (item.currency === "star" && p.stars < item.price) return { ok: false, why: `You need ${item.price - p.stars} more ★. Sell catches at the market or finish quests.` };
   return { ok: true, item };
 }
