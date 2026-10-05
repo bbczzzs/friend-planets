@@ -209,7 +209,7 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
             </button>}
           </div>
           <div className="fp-hud-r">
-            <button type="button" className="fp-pill fp-rf" onClick={() => { setShopTab("featured"); setPanel("shop"); }} title="Stars: earned by playing. Tap for the shop."><span className="fp-star">★</span><b>{hud.stars}</b><small>Shop</small></button>
+            <button type="button" className="fp-pill fp-rf" onClick={() => { setShopTab("featured"); setPanel("shop"); }} aria-label={`${hud.stars} Stars. Open the Shop`} title="Stars: earned by playing. Tap for the shop."><span className="fp-star">★</span><b>{hud.stars}</b><small>Shop</small></button>
             {act ? <button type="button" className="fp-pill fp-leave" onClick={() => engine.current?.endActivity()}><kbd>Esc</kbd> Leave</button>
               : <div className="fp-bar-r" role="toolbar" aria-label="Menu">
                 <button type="button" className="fp-icon" onClick={() => setPanel("book")} aria-label="Collection" title="Collection"><Icon name="book" />{fishCaught > 0 && <small>{fishCaught}</small>}</button>
