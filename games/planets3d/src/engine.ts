@@ -10,10 +10,11 @@ import { BUGS, Extras, FAMILY_TREASURE, TREASURES, type Find } from "./extras";
 import { ROSTER } from "../sprites";
 import { Activity, Boxing, Fishing, Penalty, Tennis, type ActivityHud, type ActivityKind, type Reward } from "./activities";
 import { GROW_MS, plotsFor, stageOf, type Progress } from "./progress";
+import { EARN, SHOP, buy, claimDaily, earn, goodsOf, has, itemById, sell, stash, useItem, walletOf } from "./economy";
 import { Blocks, glowMaterial, litMaterial } from "./models";
 import { CAMERA, OrbitCamera } from "./camera";
 import { Input } from "./input";
-import { FriendBillboard, Label, blobShadow } from "./models";
+import { FriendBillboard, Label, blobShadow, headTop } from "./models";
 import { Planet, SUN_DIR, surfaceFrame, type Station } from "./planet";
 import { Cockpit, DOOR_SPOT, RAMP_FOOT, RocketModel } from "./rocket";
 import { Sky } from "./sky";
@@ -43,6 +44,8 @@ export interface HudState {
   activity: ActivityHud | null;
   book: { fish: { name: string; color: string; rarity: number; caught: number; best: number; here: boolean }[]; crops: { name: string; n: number }[]; trophies: { planet: string; sport: Sport }[]; treasures: { name: string; icon: string; rarity: number; n: number }[]; bugs: { name: string; color: string; rarity: number; n: number }[] };
   race: { countdown: number; time: number; ring: number; total: number; best: number | null } | null;
+  /** Simulated RF wallet (see economy.ts). */
+  wallet: { rf: number; bag: { key: string; name: string; icon: string; n: number; price: number }[]; owned: string[]; equip: { rocket: string; hat: string }; items: Record<string, number>; canFertilize: boolean };
 }
 export interface EngineHost {
   onHud(state: HudState): void;
@@ -69,8 +72,11 @@ function randomTangent(n: THREE.Vector3) {
   const t1 = new THREE.Vector3().crossVectors(n, helper).normalize(), t2 = new THREE.Vector3().crossVectors(n, t1), a = Math.random() * TAU;
   return t1.multiplyScalar(Math.cos(a)).add(t2.multiplyScalar(Math.sin(a)));
 }
+/** A hat is an emoji sprite sitting on a Friend's head (its centre sits this far above the head). */
+const HAT_LIFT = 0.02;
+function hatFor(id: string | undefined) { return id ? itemById(id)?.hat ?? null : null; }
 type PeerView = {
-  id: string; s: PeerState; model: FriendBillboard; label: Label; bubble: Label; bubbleT: number; shadow: THREE.Mesh;
+  id: string; s: PeerState; model: FriendBillboard; label: Label; bubble: Label; bubbleT: number; shadow: THREE.Mesh; hat: Label; hatY: number;
   n: THREE.Vector3; world: THREE.Vector3; hop: number; vy: number; clipsFor: number; seen: number;
 };
 type Quest = { id: string; text: string; target: "pond" | "farm" | "pad" | "sport" | "dig" | "bug" | "race"; done: (e: Engine) => boolean };
@@ -175,6 +181,7 @@ export class Engine {
   private promptExtra: { kind: "dig" | "bug" | "race"; i: number } | null = null;
   private race = { t: 0, ring: 0, heading: 0, speed: 0, hover: 0 };
   private board3d: THREE.Mesh;
+  private myHat = new Label(0.8);
   constructor(private elements: EngineElements, world: World, private clips: Clips, private friendId: bigint, private host: EngineHost, private audio: ValleyAudio | null, readonly progress: Progress) {
     this.renderer = new THREE.WebGLRenderer({ canvas: elements.canvas, antialias: true, powerPreference: "high-performance" });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -214,10 +221,12 @@ export class Engine {
     this.homeFamily = home.spec.family;
     this.perk = perkOf(home.spec.family);
     if (this.perk.id === "greenThumb") this.growMs = GROW_MS / 2;
-    this.rocket = new RocketModel(home.spec.theme.roof, home.spec.theme.accent);
+    this.rocket = new RocketModel(...this.rocketColors());
     this.scene.add(this.rocket.group);
     this.friend = new FriendBillboard(clips);
     this.scene.add(this.friend.group, this.shadow);
+    this.myHat.sprite.position.set(0, headTop(clips) + HAT_LIFT, 0.05); this.friend.mesh.add(this.myHat.sprite); // tilts with the billboard
+    this.wearHat();
     if (this.perk.id === "glow") { this.glowLight = new THREE.PointLight(home.spec.theme.glow, 0, 10, 1.6); this.glowLight.position.set(0, 1.4, 0.3); this.friend.group.add(this.glowLight); }
     this.cheer.sprite.visible = false; this.scene.add(this.cheer.sprite);
     this.myBubble.sprite.visible = false; this.scene.add(this.myBubble.sprite);
@@ -326,17 +335,17 @@ export class Engine {
     const onPlanet = this.mode === "walk" || this.mode === "play" || this.mode === "board" || this.mode === "intro" || this.mode === "race";
     const r3 = (v: THREE.Vector3): [number, number, number] => [Math.round(v.x * 1e4) / 1e4, Math.round(v.y * 1e4) / 1e4, Math.round(v.z * 1e4) / 1e4];
     const d = this.moveDir.lengthSq() > 0 ? this.moveDir.clone().normalize() : new THREE.Vector3(1, 0, 0);
-    this.net.state({ f: Number(this.friendId), fam: this.homeFamily % 9, p: onPlanet ? this.current.spec.id : 0, n: r3(this.n), d: r3(d), m: this.moving && this.mode === "walk", mode: this.mode, act: this.activity?.kind ?? "" });
+    this.net.state({ f: Number(this.friendId), fam: this.homeFamily % 9, p: onPlanet ? this.current.spec.id : 0, n: r3(this.n), d: r3(d), m: this.moving && this.mode === "walk", mode: this.mode, act: this.activity?.kind ?? "", h: walletOf(this.progress).equip.hat });
   }
   private peerState(id: string, st: PeerState) {
     let p = this.peers.get(id);
     if (!p) {
       const model = new FriendBillboard(stillClips(fallbackSprite(st.f)));
-      const label = new Label(0.42), bubble = new Label(0.36), shadow = blobShadow(0.8);
+      const label = new Label(0.42), bubble = new Label(0.36), shadow = blobShadow(0.8), hat = new Label(0.8);
       label.set([{ text: `Friend #${st.f}`, color: "#7db4db", size: 34 }]);
       bubble.sprite.visible = false;
-      this.scene.add(model.group, label.sprite, bubble.sprite, shadow);
-      p = { id, s: st, model, label, bubble, bubbleT: 0, shadow, n: new THREE.Vector3(...st.n).normalize(), world: new THREE.Vector3(), hop: 0, vy: 0, clipsFor: 0, seen: this.time };
+      this.scene.add(model.group, label.sprite, bubble.sprite, shadow, hat.sprite);
+      p = { id, s: st, model, label, bubble, bubbleT: 0, shadow, hat, hatY: 2, n: new THREE.Vector3(...st.n).normalize(), world: new THREE.Vector3(), hop: 0, vy: 0, clipsFor: 0, seen: this.time };
       this.peers.set(id, p);
       this.host.onToast(`Friend #${st.f} is online`, "info");
       const view = p;
@@ -346,16 +355,19 @@ export class Engine {
         view.clipsFor = st.f;
         const fresh = new FriendBillboard(art.clips);
         this.scene.remove(view.model.group); view.model.dispose();
-        view.model = fresh; this.scene.add(fresh.group);
+        view.model = fresh; this.scene.add(fresh.group); view.hatY = headTop(art.clips) + HAT_LIFT;
       });
     }
     if (p.s.p !== st.p) p.n.set(...st.n).normalize();
     p.s = st; p.seen = this.time;
+    const hat = hatFor(st.h);
+    if (hat) p.hat.set([{ text: hat, size: 40 }]);
+    p.hat.sprite.userData.on = !!hat;
   }
   private dropPeer(id: string) {
     const p = this.peers.get(id); if (!p) return;
-    this.scene.remove(p.model.group, p.label.sprite, p.bubble.sprite, p.shadow);
-    p.model.dispose(); p.label.dispose(); p.bubble.dispose();
+    this.scene.remove(p.model.group, p.label.sprite, p.bubble.sprite, p.shadow, p.hat.sprite);
+    p.model.dispose(); p.label.dispose(); p.bubble.dispose(); p.hat.dispose();
     this.peers.delete(id);
   }
   private updatePeers(dt: number) {
@@ -364,6 +376,7 @@ export class Engine {
       if (this.time - p.seen > 20) { this.dropPeer(p.id); continue; }
       const here = p.s.p === planet.spec.id && p.s.mode !== "fly" && (this.mode === "walk" || this.mode === "play" || this.mode === "intro" || this.mode === "race");
       p.model.group.visible = p.label.sprite.visible = p.shadow.visible = here;
+      p.hat.sprite.visible = here && p.hat.sprite.userData.on === true;
       p.bubbleT -= dt;
       p.bubble.sprite.visible = here && p.bubbleT > 0;
       if (!here) continue;
@@ -386,6 +399,7 @@ export class Engine {
       p.label.sprite.position.copy(p.world).addScaledVector(n, 2.6);
       p.label.sprite.visible = !p.bubble.sprite.visible;
       p.bubble.sprite.position.copy(p.world).addScaledVector(n, 2.6);
+      p.hat.sprite.position.copy(p.world).addScaledVector(n, p.hatY);
       p.shadow.position.copy(p.world).addScaledVector(n, 0.04 - p.hop); p.shadow.quaternion.setFromUnitVectors(Y, n);
     }
   }
@@ -474,9 +488,9 @@ export class Engine {
     const p = this.progress; p.quests ??= [];
     for (const q of QUESTS) {
       if (p.quests.includes(q.id) || !q.done(this)) continue;
-      p.quests.push(q.id); p.stars += 10;
+      p.quests.push(q.id); p.stars += 10; earn(p, EARN.quest);
       this.host.onProgress(p);
-      this.host.onToast(`Quest complete: ${q.text}! +10 ★`, "good");
+      this.host.onToast(`Quest complete: ${q.text}! +10 ★ +${EARN.quest} RF`, "good");
       this.audio?.fanfare(); this.celebrate("★");
       break;
     }
@@ -523,6 +537,7 @@ export class Engine {
   }
 
   private parkRocket(planet: Planet) {
+    if (this.pendingPaint) { this.pendingPaint = false; this.repaintRocket(); }
     const pos = new THREE.Vector3(), scale = new THREE.Vector3();
     planet.padFrame.decompose(pos, this.ship.o, scale);
     this.ship.p.copy(planet.group.position).add(pos).addScaledVector(pos.normalize(), 0.3);
@@ -681,11 +696,11 @@ export class Engine {
       plot.crop = crop.name; plot.plantedAt = Date.now();
       this.audio?.pop(); this.host.onToast(`Planted ${crop.name}. Ready in ${Math.round(this.growMs / 1000)}s.`, "info");
     } else if (stage === 3) {
-      const name = plot.crop!;
-      this.progress.crops[name] = (this.progress.crops[name] ?? 0) + 1;
-      this.progress.stars += 3;
+      const name = plot.crop!, n = has(this.progress, "gear:seeds") ? 2 : 1;
+      this.progress.crops[name] = (this.progress.crops[name] ?? 0) + n;
+      this.progress.stars += 3; stash(this.progress, `crop:${name}`, n);
       plot.crop = null; plot.plantedAt = 0;
-      this.audio?.pickup(); this.host.onToast(`Harvested ${name}! +3 ★`, "good");
+      this.audio?.pickup(); this.host.onToast(`Harvested ${n > 1 ? n + " " : ""}${name}! +3 ★ · sell it in the 🛒 market`, "good");
     } else {
       this.host.onToast(`${plot.crop} is growing… ${Math.ceil((this.growMs - (Date.now() - plot.plantedAt)) / 1000)}s`, "info");
       return;
@@ -767,6 +782,8 @@ export class Engine {
       audio: this.audio, reward: (r: Reward) => this.reward(r, planet), shake: (a: number) => this.cam.addShake(a),
       pond: planet.pond ? root.worldToLocal(planet.pond.clone().add(planet.group.position)) : undefined,
       perk: this.perk.id,
+      bait: kind === "fish" && useItem(this.progress, "item:bait"),
+      rod: has(this.progress, "gear:rod"),
       held: () => this.actionHeld || this.input.held(" ") || this.input.held("e") || this.input.held("enter"),
       steer: () => this.steerHeld || (Number(this.input.held("d") || this.input.held("arrowright")) - Number(this.input.held("a") || this.input.held("arrowleft"))),
       move: () => this.input.move(),
@@ -774,6 +791,7 @@ export class Engine {
     };
     this.activity = kind === "fish" ? new Fishing(ctx) : kind === "goal" ? new Penalty(ctx) : kind === "tennis" ? new Tennis(ctx) : new Boxing(ctx);
     this.activityHost = this.hosts.find(h => h.planet === planet) ?? null;
+    if (ctx.bait) { this.host.onProgress(this.progress); this.host.onToast("🪱 Golden bait on the hook: a rare fish is in the pond!", "good"); }
     this.mode = "play";
     this.audio?.blip(760);
   }
@@ -818,15 +836,16 @@ export class Engine {
       const entry = p.fish[r.fish.name] ?? { n: 0, best: 0 };
       const first = entry.n === 0;
       entry.n++; entry.best = Math.max(entry.best, r.size); p.fish[r.fish.name] = entry;
-      p.stars += r.fish.rarity * 5;
+      p.stars += r.fish.rarity * 5; stash(p, `fish:${r.fish.name}`);
       if (first) this.host.onToast(`New fish for your log: ${r.fish.name}!`, "good");
       this.pendingCheer = { won: true, sport: false };
     } else {
-      p.stars += r.stars;
+      const rf = r.won ? EARN.sportWin : EARN.sportPlay;
+      p.stars += r.stars; earn(p, rf);
       this.pendingCheer = { won: r.won, sport: true };
       const key = String(planet.spec.id);
-      if (r.won && !p.trophies[key]) { p.trophies[key] = r.sport; this.refreshShelf(); this.host.onToast(`🏆 Trophy from ${planet.spec.name}! +${r.stars} ★`, "good"); }
-      else this.host.onToast(`+${r.stars} ★`, r.won ? "good" : "info");
+      if (r.won && !p.trophies[key]) { p.trophies[key] = r.sport; this.refreshShelf(); this.host.onToast(`🏆 Trophy from ${planet.spec.name}! +${r.stars} ★ +${rf} RF`, "good"); }
+      else this.host.onToast(`+${r.stars} ★ +${rf} RF`, r.won ? "good" : "info");
     }
     this.host.onProgress(p);
   }
@@ -968,6 +987,8 @@ export class Engine {
     this.faceShot(this.current, 2.5);
     this.camera.position.copy(this.cine.pos);
     this.host.onToast(`This is ${this.current.spec.name}: your Friend's own planet.`, "good");
+    const daily = claimDaily(this.progress);
+    if (daily) { this.host.onProgress(this.progress); window.setTimeout(() => this.host.onToast(`☀️ Daily bonus: +${daily} RF (simulated)`, "good"), 6500); }
   }
   private faceShot(planet: Planet, height: number) {
     const c = planet.group.position, R = planet.R;
@@ -1058,8 +1079,8 @@ export class Engine {
     this.rocket.land(speed);
     this.cam.addShake(Math.min(1, 0.2 + speed * 0.07));
     this.audio?.land();
-    if (speed < 2.8) { this.progress.stars += 5; this.host.onProgress(this.progress); this.host.onToast("Perfect landing! +5 ★", "good"); this.audio?.fanfare(); }
-    else if (speed < 5.5) { this.progress.stars += 2; this.host.onProgress(this.progress); this.host.onToast("Nice landing! +2 ★", "good"); }
+    if (speed < 2.8) { this.progress.stars += 5; earn(this.progress, EARN.landingPerfect); this.host.onProgress(this.progress); this.host.onToast(`Perfect landing! +5 ★ +${EARN.landingPerfect} RF`, "good"); this.audio?.fanfare(); }
+    else if (speed < 5.5) { this.progress.stars += 2; earn(this.progress, EARN.landingNice); this.host.onProgress(this.progress); this.host.onToast(`Nice landing! +2 ★ +${EARN.landingNice} RF`, "good"); }
     else { this.audio?.bonk(); this.host.onToast("Bumpy landing! Everyone's fine…", "bad"); }
   }
   private finishLanding(planet: Planet, out: THREE.Vector3) {
@@ -1230,6 +1251,72 @@ export class Engine {
     }
   }
 
+  // ---------------------------------------------------------------- shop & market (simulated RF, see economy.ts)
+  private rocketColors(): [string, string] {
+    const theme = this.planets[0].spec.theme, colors = itemById(walletOf(this.progress).equip.rocket)?.colors;
+    return colors ?? [theme.roof, theme.accent];
+  }
+  /** Repaint the rocket by rebuilding it where it stands (only while it's parked). */
+  private repaintRocket() {
+    const old = this.rocket, fresh = new RocketModel(...this.rocketColors());
+    fresh.group.position.copy(old.group.position); fresh.group.quaternion.copy(old.group.quaternion); fresh.group.visible = old.group.visible;
+    this.scene.remove(old.group); old.group.traverse(o => (o as THREE.Mesh).geometry?.dispose());
+    this.rocket = fresh; this.scene.add(fresh.group);
+    fresh.setThrust(0, 0); fresh.setHatch(1);
+  }
+  private wearHat() {
+    const hat = hatFor(walletOf(this.progress).equip.hat);
+    if (hat) this.myHat.set([{ text: hat, size: 40 }]);
+    this.myHat.sprite.visible = !!hat;
+  }
+  private walletHud(): HudState["wallet"] {
+    const w = walletOf(this.progress);
+    const plots = this.current.spec.farm ? plotsFor(this.progress, this.current.spec.id) : [];
+    return {
+      rf: w.rf, owned: w.owned, equip: w.equip, items: w.items,
+      bag: Object.entries(w.bag).map(([key, n]) => ({ ...goodsOf(key), n })).sort((a, b) => b.price - a.price),
+      canFertilize: this.mode === "walk" && plots.some(p => p.crop && stageOf(p, Date.now(), this.growMs) < 3),
+    };
+  }
+  buy(id: string) {
+    const r = buy(this.progress, id);
+    if (!r.ok) { this.host.onToast(r.why, "bad"); this.audio?.miss(); return; }
+    this.host.onToast(`${r.item.icon} ${r.item.name} bought for ${r.item.price} RF`, "good");
+    this.audio?.pickup();
+    if (r.item.kind === "rocket" || r.item.kind === "hat") this.applyLook(r.item.kind);
+    this.host.onProgress(this.progress); this.emitHud();
+  }
+  equip(id: string) {
+    const item = itemById(id), w = walletOf(this.progress);
+    if (!item || (item.kind !== "rocket" && item.kind !== "hat") || !w.owned.includes(id)) return;
+    w.equip[item.kind] = id; this.applyLook(item.kind);
+    this.audio?.blip(660);
+    this.host.onProgress(this.progress); this.emitHud();
+  }
+  private applyLook(kind: "rocket" | "hat") {
+    if (kind === "hat") { this.wearHat(); this.celebrate(hatFor(walletOf(this.progress).equip.hat) ?? "★"); this.sendState(); return; }
+    if (this.mode === "walk" || this.mode === "play" || this.mode === "race" || this.mode === "intro") this.repaintRocket();
+    else this.pendingPaint = true;
+  }
+  private pendingPaint = false;
+  sell(key: string) {
+    const got = sell(this.progress, key);
+    if (!got) return;
+    this.host.onToast(`Sold for ${got} RF`, "good"); this.audio?.pickup();
+    this.host.onProgress(this.progress); this.emitHud();
+  }
+  fertilize() {
+    if (this.mode !== "walk") return;
+    const plots = plotsFor(this.progress, this.current.spec.id), now = Date.now();
+    const growing = plots.filter(p => p.crop && stageOf(p, now, this.growMs) < 3);
+    if (!growing.length) { this.host.onToast("Nothing growing here: plant something first.", "info"); return; }
+    if (!useItem(this.progress, "item:fert")) { this.host.onToast("You need Fertilizer from the shop.", "bad"); return; }
+    for (const p of growing) p.plantedAt = now - this.growMs - 1;
+    this.host.onToast(`🧪 ${growing.length} crop${growing.length > 1 ? "s" : ""} ripened!`, "good"); this.audio?.pickup();
+    this.host.onProgress(this.progress); this.refreshCrops(true); this.emitHud();
+  }
+  readonly shop = SHOP;
+
   // ---------------------------------------------------------------- HUD & host API
   info(planet: Planet): PlanetInfo {
     const s = planet.spec;
@@ -1267,6 +1354,7 @@ export class Engine {
       race: this.mode === "race" ? { countdown: this.race.t < 0 ? Math.ceil(-this.race.t) : 0, time: Math.max(0, Math.round(this.race.t * 10) / 10), ring: this.race.ring, total: this.extras?.rings.length ?? 10, best: this.progress.raceBest?.[String(this.current.spec.id)] ?? null } : null,
       activity: this.mode === "play" && this.activity ? this.activity.hud() : null,
       book: this.book(),
+      wallet: this.walletHud(),
     };
     const key = JSON.stringify(state);
     if (key !== this.hudKey) { this.hudKey = key; this.host.onHud(state); }
@@ -1290,10 +1378,12 @@ export class Engine {
     if (e.kind === "dig") {
       find = x.dig(e.i, this.current.spec.family);
       p.treasures = { ...(p.treasures ?? {}), [find.name]: (p.treasures?.[find.name] ?? 0) + 1 };
+      stash(p, `treasure:${find.name}`);
       this.cam.addShake(0.3); this.audio?.rustle();
     } else {
       find = x.catchBug(e.i);
       p.bugs = { ...(p.bugs ?? {}), [find.name]: (p.bugs?.[find.name] ?? 0) + 1 };
+      stash(p, `bug:${find.name}`);
       this.audio?.swish();
     }
     const stars = find.rarity * 4;
@@ -1328,9 +1418,9 @@ export class Engine {
     const p = this.progress, key = String(this.current.spec.id), best = p.raceBest?.[key];
     const record = best === undefined || r.t < best;
     p.raceBest = { ...(p.raceBest ?? {}), [key]: record ? Math.round(r.t * 10) / 10 : best! };
-    const stars = r.t < 30 ? 20 : r.t < 45 ? 12 : 6;
-    p.stars += stars; this.host.onProgress(p);
-    this.host.onToast(`🛹 Finished in ${r.t.toFixed(1)}s${record ? " · new best!" : ` · best ${best!.toFixed(1)}s`} +${stars} ★`, "good");
+    const stars = r.t < 30 ? 20 : r.t < 45 ? 12 : 6, rf = r.t < 30 ? EARN.raceFast : r.t < 45 ? EARN.raceMid : EARN.raceSlow;
+    p.stars += stars; earn(p, rf); this.host.onProgress(p);
+    this.host.onToast(`🛹 Finished in ${r.t.toFixed(1)}s${record ? " · new best!" : ` · best ${best!.toFixed(1)}s`} +${stars} ★ +${rf} RF`, "good");
     this.audio?.fanfare(); this.celebrate("🏁");
   }
   private updateRace(dt: number) {
@@ -1345,7 +1435,8 @@ export class Engine {
     this.heading = r.heading; this.moving = r.t > 0;
     if (r.t > 0) {
       const boost = this.input.held("shift");
-      r.speed += ((boost ? 23 : 18) - r.speed) * Math.min(1, dt * 1.5);
+      const turbo = has(this.progress, "gear:board") ? 1.15 : 1;
+      r.speed += ((boost ? 23 : 18) * turbo - r.speed) * Math.min(1, dt * 1.5);
       const dir = tmpA.set(Math.sin(r.heading), 0, Math.cos(r.heading)).applyQuaternion(this.Q);
       this.moveDir.copy(dir);
       const next = tmpB.copy(this.n).multiplyScalar(R).addScaledVector(dir, r.speed * dt).normalize();

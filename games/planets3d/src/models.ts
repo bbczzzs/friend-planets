@@ -107,6 +107,11 @@ export class Label {
 // ---- A Rare Friend as a camera-facing billboard built from its canonical 16×16 frames ----
 const CELL = 18, SCALE = 4;
 export const FRIEND_SIZE = 2.4;
+/** Height of the top of a Friend's head above its feet, from its idle frame. */
+export function headTop(clips: Clips, size = FRIEND_SIZE) {
+  const rows = clips.idle.down[0], first = Math.max(0, rows.findIndex(line => line.includes("#")));
+  return size - size / CELL - (first + 1) * size / CELL;
+}
 export class FriendBillboard {
   readonly group = new THREE.Group();
   readonly mesh: THREE.Mesh;

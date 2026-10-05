@@ -36,6 +36,9 @@ export interface ActivityContext {
   pond?: THREE.Vector3;
   /** Your Friend's family perk. */
   perk: PerkId;
+  /** Golden bait: a rare fish swims in the pond this trip. Pro rod: line tension builds slower. */
+  bait?: boolean;
+  rod?: boolean;
   /** Is the action button/key held right now? Which way are you steering (-1 left, 1 right)? */
   held(): boolean;
   steer(): number;
@@ -170,6 +173,7 @@ export class Fishing extends Activity {
     }
     this.splash = this.add(particles(Array.from({ length: 40 }, () => new THREE.Vector3()), { color: "#e6f6ff", size: 0.16, mode: "burst", speed: 1.4, spread: 1.3 }));
     for (let i = 0; i < 4; i++) this.addSwimmer();
+    if (ctx.bait) this.addSwimmer(true);
   }
   view(): [THREE.Vector3, THREE.Vector3] {
     const y = this.ctx.floorY;
@@ -183,16 +187,16 @@ export class Fishing extends Activity {
 
   private water(x: number, z: number) { return this.ctx.waterY(x, z); }
   private inPond(x: number, z: number, margin = 0.6) { return Math.hypot(x - this.center.x, z - this.center.z) < this.radius - margin && z < -0.6; }
-  private pickFish() {
-    const pool = fishOf(this.ctx.family);
+  private pickFish(rare = false) {
+    const all = fishOf(this.ctx.family), pool = rare ? all.filter(f => f.rarity >= 3) : all;
     const weight = (f: Fish) => [0, 55, 30, 12, 3][f.rarity];
     let total = 0; for (const f of pool) total += weight(f);
     let roll = rand() * total;
     for (const f of pool) { roll -= weight(f); if (roll <= 0) return f; }
     return pool[0];
   }
-  private addSwimmer() {
-    const fish = this.pickFish(), size = (0.75 + fish.rarity * 0.18) * (0.8 + rand() * 0.4);
+  private addSwimmer(rare = false) {
+    const fish = this.pickFish(rare), size = (0.75 + fish.rarity * 0.18) * (0.8 + rand() * 0.4);
     const mesh = this.add(new THREE.Mesh(SHADOW, new THREE.MeshBasicMaterial({ color: "#0d2033", transparent: true, opacity: 0.42, depthWrite: false })));
     mesh.scale.setScalar(size);
     let x = 0, z = 0;
@@ -306,7 +310,7 @@ export class Fishing extends Activity {
       if (surging) this.surge -= dt;
       const against = surging && steer === -this.surgeDir;
       if (held) {
-        this.tension += dt * (surging ? (against ? 0.55 : 1.35) * strength : 0.42);
+        this.tension += dt * (surging ? (against ? 0.55 : 1.35) * strength : 0.42) * (this.ctx.rod ? 0.7 : 1);
         this.distance -= dt * (surging ? 0.03 : 0.2 / (0.7 + f.rarity * 0.15));
       } else {
         this.tension -= dt * 0.75;

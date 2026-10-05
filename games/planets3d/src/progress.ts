@@ -1,5 +1,6 @@
-/** What you've collected, saved per Friend in this browser. Nothing here is on-chain or worth RF. */
+/** What you've collected, saved per Friend in this browser. Nothing here is on-chain; RF in `wallet` is simulated. */
 import type { Sport } from "./data";
+import type { Wallet } from "./economy";
 
 export interface PlotState { crop: string | null; plantedAt: number }
 export interface Progress {
@@ -15,6 +16,7 @@ export interface Progress {
   treasures?: Record<string, number>;
   bugs?: Record<string, number>;
   raceBest?: Record<string, number>; // planet token id → best lap in seconds
+  wallet?: Wallet; // simulated RF, see economy.ts
 }
 
 export const GROW_MS = 40_000;

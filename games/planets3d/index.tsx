@@ -7,6 +7,7 @@ import type { ActivityHud } from "./src/activities";
 import { makeGalaxy } from "./src/galaxy";
 import { FAMILY_NAMES, RARITY, RARITY_COLOR, SPORTS, perkOf } from "./src/data";
 import { loadProgress, saveProgress } from "./src/progress";
+import { SHOP, type ItemKind } from "./src/economy";
 import { loadPilot, type PilotSprite } from "./pilot";
 import { stillClips, fallbackSprite, spriteCanvas } from "./sprites";
 import { ValleyAudio } from "./audio";
@@ -21,6 +22,8 @@ const SLIDES = [
   { icon: "🌐", title: "Meet other players", text: "Everyone online shares the galaxy: see their Friends, chat and wave. Your family perk changes how you play, and Friends you visit come to your campfire." },
 ];
 type Phase = "loading" | "error" | "title" | "playing";
+type ShopTab = "sell" | ItemKind;
+const SHOP_TABS: { id: ShopTab; label: string }[] = [{ id: "sell", label: "💰 Sell" }, { id: "hat", label: "🎩 Hats" }, { id: "rocket", label: "🚀 Rockets" }, { id: "item", label: "🧪 Items" }, { id: "gear", label: "⚙️ Upgrades" }];
 
 function Portrait({ pilot, size = 96 }: { pilot: PilotSprite; size?: number }) {
   const src = spriteCanvas(pilot.clips.idle.down[0]).toDataURL();
@@ -50,10 +53,11 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
   const [phase, setPhase] = useState<Phase>("loading"), [failure, setFailure] = useState("");
   const [pilot, setPilot] = useState<PilotSprite | null>(null);
   const [hud, setHud] = useState<HudState | null>(null), [toasts, setToasts] = useState<Toast[]>([]);
-  const [muted, setMuted] = useState(true), [panel, setPanel] = useState<"help" | "book" | "online" | null>(null), [touch, setTouch] = useState(false);
+  const [muted, setMuted] = useState(true), [panel, setPanel] = useState<"help" | "book" | "online" | "shop" | null>(null), [touch, setTouch] = useState(false);
   const [chat, setChat] = useState<string | null>(null);
   const [visitId, setVisitId] = useState("");
   const [slide, setSlide] = useState(0);
+  const [shopTab, setShopTab] = useState<ShopTab>("sell");
 
   const toast = useCallback((text: string, kind: ToastKind = "info") => {
     const id = ++toastId.current;
@@ -137,12 +141,14 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
             </div>}
             {flying && hud.fly && <div className="fp-pill fp-speed"><b>{hud.fly.speed}</b><span>km/s{hud.fly.boosting ? " · BOOST" : ""}</span></div>}
             <div className="fp-pill fp-stars"><b>{hud.stars}</b><span>★</span></div>
+            <button type="button" className="fp-pill fp-rf" onClick={() => setPanel("shop")} title="Simulated RF: earn by playing, spend in the shop"><b>{hud.wallet.rf}</b><span>RF <small>sim</small></span></button>
             {!act && !flying && <div className="fp-pill fp-perk" title={hud.perk.text}><b>{hud.perk.icon} {hud.perk.name}</b><span>{hud.perk.text}</span></div>}
             {!act && mode === "walk" && hud.quest && <div className="fp-pill fp-quest"><b>Quest {hud.quest.n}/{hud.quest.total}</b><span>{hud.quest.text}</span></div>}
           </div>
           <div className="fp-hud-r">
             {act ? <button type="button" className="fp-leave" onClick={() => engine.current?.endActivity()}><kbd>Esc</kbd> Leave</button> : <>
               <button type="button" className="fp-icon fp-bookbtn" onClick={() => setPanel("book")} aria-label="Collection">🎣 <small>{fishCaught}</small></button>
+              {mode === "walk" && <button type="button" className="fp-icon fp-shopbtn" onClick={() => setPanel("shop")} aria-label="Market and shop">🛒{hud.wallet.bag.length > 0 && <small>{hud.wallet.bag.reduce((n, g) => n + g.n, 0)}</small>}</button>}
             </>}
             <button type="button" className={`fp-icon fp-online${hud.online.status === "online" ? " on" : ""}`} onClick={() => setPanel("online")} aria-label="Who's online">🌐 <small>{hud.online.status === "online" ? hud.online.players.length + 1 : hud.online.status === "connecting" ? "…" : "off"}</small></button>
             <button type="button" className="fp-icon" onClick={toggleSound} aria-label={muted ? "Turn sound on" : "Turn sound off"}>{muted ? "🔇" : "🔊"}</button>
@@ -262,7 +268,8 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
             <li><b>Games</b> use Space / E / tap (hold to reel or power up), A / D to aim or dodge, S to block and W for the star punch. Esc leaves.</li>
             <li><b>Space</b>: 🔭 Discover flies you to a random Friend's planet, or type any token number to visit that Friend.</li>
             <li><b>Your family perk</b> changes how you play; Friends you visit come to hang out at your campfire.</li>
-            <li>Every planet belongs to a real Rare Friend. Nothing here costs RF; ★ are just for fun.</li>
+            <li><b>🛒 Market</b>: sell what you catch, grow and dig for RF, then buy hats, rocket paint, bait, fertilizer and upgrades. Quests, sports, races, good landings and a daily bonus pay RF too.</li>
+            <li>Every planet belongs to a real Rare Friend. RF is simulated for now: nothing touches your wallet.</li>
           </ul>
           <button type="button" className="fp-cta" onClick={() => setPanel(null)}>Back to playing</button>
         </div>
@@ -281,6 +288,36 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
           <label className="fp-toggle"><input type="checkbox" checked={hud.online.enabled} onChange={e => engine.current?.setOnline(e.target.checked)} /> Play online (see others, they see you)</label>
           <p className="fp-fine">Peer to peer through public Nostr relays: only your Friend number, where you stand, chat and emotes are shared (no wallet address). Like any peer-to-peer game, other players can see your IP address.</p>
           <button type="button" className="fp-cta" onClick={() => setPanel(null)}>Close</button>
+        </div>
+      </div>}
+      {panel === "shop" && hud && <div className="fp-screen" onPointerDown={e => { if (e.target === e.currentTarget) setPanel(null); }}>
+        <div className="fp-card fp-shop" role="dialog" aria-modal="true" aria-label="Market and shop">
+          <div className="fp-shop-head"><h2>🛒 Market</h2><div className="fp-shop-bal"><b>{hud.wallet.rf}</b> RF</div></div>
+          <p className="fp-sim">Simulated RF for now: nothing here touches your wallet. Everything has a fixed price, no mystery boxes.</p>
+          <div className="fp-tabs" role="tablist">{SHOP_TABS.map(t => <button key={t.id} type="button" role="tab" aria-selected={shopTab === t.id} className={shopTab === t.id ? "on" : ""} onClick={() => setShopTab(t.id)}>{t.label}</button>)}</div>
+          {shopTab === "sell" ? <>
+            {hud.wallet.bag.length ? <>
+              <ul className="fp-goods">{hud.wallet.bag.map(g => <li key={g.key}>
+                <span className="fp-goods-ico">{g.icon}</span><span className="fp-goods-name"><b>{g.name}</b><small>×{g.n} · {g.price} RF each</small></span>
+                <button type="button" onClick={() => engine.current?.sell(g.key)}>Sell {g.n * g.price}</button>
+              </li>)}</ul>
+              <button type="button" className="fp-cta" onClick={() => engine.current?.sell("all")}>Sell everything · {hud.wallet.bag.reduce((n, g) => n + g.n * g.price, 0)} RF</button>
+            </> : <p className="fp-empty">Your bag is empty. Fish, farm, dig and catch butterflies, then sell them here. Quests, sports, races and good landings pay RF too.</p>}
+          </> : <ul className="fp-items">{SHOP.filter(i => i.kind === shopTab).map(i => {
+            const owned = hud.wallet.owned.includes(i.id), worn = hud.wallet.equip.rocket === i.id || hud.wallet.equip.hat === i.id, count = hud.wallet.items[i.id] ?? 0;
+            return <li key={i.id} className={worn ? "worn" : ""}>
+              <span className="fp-item-ico">{i.icon}</span>
+              <span className="fp-item-txt"><b>{i.name}{count ? ` ×${count}` : ""}</b><small>{i.text}</small></span>
+              {i.kind === "item" ? <span className="fp-item-btns">
+                  {i.id === "item:fert" && count > 0 && <button type="button" disabled={!hud.wallet.canFertilize} onClick={() => engine.current?.fertilize()} title={hud.wallet.canFertilize ? "Ripen your crops now" : "Stand on a planet with growing crops"}>Use</button>}
+                  <button type="button" disabled={hud.wallet.rf < i.price} onClick={() => engine.current?.buy(i.id)}>{i.price} RF</button>
+                </span>
+                : worn ? <span className="fp-item-tag">{i.kind === "gear" ? "Owned" : "Wearing"}</span>
+                : owned ? (i.kind === "gear" ? <span className="fp-item-tag">Owned</span> : <button type="button" onClick={() => engine.current?.equip(i.id)}>Use</button>)
+                : <button type="button" disabled={hud.wallet.rf < i.price} onClick={() => engine.current?.buy(i.id)}>{i.price} RF</button>}
+            </li>;
+          })}</ul>}
+          <button type="button" className="fp-cta fp-ghost" onClick={() => setPanel(null)}>Close</button>
         </div>
       </div>}
       {panel === "book" && hud && <div className="fp-screen" onPointerDown={e => { if (e.target === e.currentTarget) setPanel(null); }}>

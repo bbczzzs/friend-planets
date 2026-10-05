@@ -235,3 +235,34 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
 .fp-dots button.on { background: var(--ink); }
 .fp-title-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .fp-title-btns .fp-cta { min-width: 130px; }
+
+/* simulated RF wallet, market and shop */
+.fp-rf { flex-direction: row; align-items: baseline; gap: 5px; background: var(--meadow); cursor: pointer; }
+.fp-rf b { font: 700 18px/1 var(--mono); }
+.fp-rf span { font: 700 14px var(--mono); }
+.fp-rf small { font: 700 9px var(--display); color: var(--muted); }
+.fp-rf:active { transform: translate(3px, 3px); box-shadow: none; }
+.fp-shopbtn { width: auto; padding: 0 10px; display: flex; align-items: center; gap: 4px; font-size: 15px; }
+.fp-shopbtn small { font: 700 12px var(--mono); }
+.fp-shop { width: min(560px, 100%); max-height: calc(100vh - var(--safe-b) - 24px); align-self: start; display: flex; flex-direction: column; text-align: left; }
+.fp-shop-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.fp-shop-head h2 { margin: 0; }
+.fp-shop-bal { padding: 4px 10px; background: var(--meadow); border: var(--line); font: 700 14px var(--mono); }
+.fp-shop-bal b { font-size: 18px; }
+.fp-sim { margin: 6px 0 10px; font: 11px/1.4 var(--mono); color: var(--muted); }
+.fp-tabs { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 6px; flex: none; }
+.fp-tabs button { flex: none; height: 34px; padding: 0 10px; background: var(--white); border: var(--line); font: 700 11px var(--display); }
+.fp-tabs button.on { background: var(--ink); color: var(--signal); }
+.fp-goods, .fp-items { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 6px; overflow-y: auto; min-height: 0; }
+.fp-goods li, .fp-items li { display: flex; align-items: center; gap: 10px; padding: 6px 8px; background: var(--white); border: 2px solid var(--ink); }
+.fp-items li.worn { background: #f4ffd6; }
+.fp-goods-ico, .fp-item-ico { flex: none; width: 34px; text-align: center; font-size: 22px; }
+.fp-goods-name, .fp-item-txt { flex: 1; min-width: 0; }
+.fp-goods-name b, .fp-item-txt b { display: block; font: 700 12px var(--display); }
+.fp-goods-name small, .fp-item-txt small { display: block; font: 11px/1.35 var(--mono); color: var(--muted); }
+.fp-item-btns { display: flex; gap: 4px; flex: none; }
+.fp-goods button, .fp-items button { flex: none; height: 32px; min-width: 64px; padding: 0 10px; background: var(--signal); border: var(--line); font: 700 11px var(--display); }
+.fp-goods button:disabled, .fp-items button:disabled { background: #ddd; color: #888; cursor: default; }
+.fp-item-tag { flex: none; padding: 0 6px; font: 700 10px var(--display); color: var(--muted); }
+.fp-shop .fp-empty { font: 12px/1.5 var(--mono); color: var(--muted); padding: 10px 0; }
+.fp-shop .fp-cta { align-self: center; flex: none; }
