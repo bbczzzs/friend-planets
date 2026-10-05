@@ -14,6 +14,8 @@ Premium items are cosmetic only. Hats and auras are shown to every player on the
 
 A **featured shelf** spotlights three premium items each week and rotates every Monday (UTC). Items come back around later; nothing is permanently limited.
 
+**Bundles** (Royal, Night sky, Party) sell a complete hat + aura + rocket look for 20% off the pieces the player doesn't own yet, so owning one piece never costs extra. A bundle is one order with `item: "bundle:…"` and the discounted price.
+
 ## How players earn RF
 
 Only from other players' purchases, so nobody has to fund payouts and bots have nothing to farm:
@@ -36,7 +38,7 @@ The game hands the item over only after `purchase` resolves with `ok`. Until the
 ```ts
 interface Order {
   id: string;                 // unique per purchase
-  item: string;               // e.g. "hat:crown" (catalogue in economy.ts)
+  item: string;               // e.g. "hat:crown" or "bundle:royal" (catalogue in economy.ts)
   price: number;              // RF, whole tokens
   buyer: string;              // buyer's Friend token number
   planetOwner: number | null; // Friend whose planet it was bought on, or null at home
