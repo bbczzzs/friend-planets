@@ -1,6 +1,7 @@
-/** What you've collected, saved per Friend in this browser. Nothing here is on-chain; RF in `wallet` is simulated. */
+/** What you've collected, saved per Friend in this browser. Nothing here is on-chain: Stars are play money, and RF purchases are recorded as orders in `wallet`. */
 import type { Sport } from "./data";
 import type { Wallet } from "./economy";
+import type { TaskState } from "./tasks";
 
 export interface PlotState { crop: string | null; plantedAt: number }
 export interface Progress {
@@ -16,7 +17,8 @@ export interface Progress {
   treasures?: Record<string, number>;
   bugs?: Record<string, number>;
   raceBest?: Record<string, number>; // planet token id → best lap in seconds
-  wallet?: Wallet; // simulated RF, see economy.ts
+  wallet?: Wallet; // see economy.ts
+  tasks?: TaskState; // today's daily tasks, see tasks.ts
 }
 
 export const GROW_MS = 40_000;

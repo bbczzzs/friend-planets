@@ -367,3 +367,35 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
 .fp-shop .fp-empty { font: 500 12.5px/1.55 var(--body); color: var(--muted); padding: 14px 2px; }
 .fp-shop .fp-cta { align-self: center; flex: none; }
 .fp-shop > .fp-cta:not(.fp-ghost) { background: var(--gold); }
+
+/* try-on in the checkout: your Friend wearing the hat or aura */
+.fp-tryon { position: relative; width: 108px; height: 108px; display: grid; place-items: center; }
+.fp-tryon img { position: relative; z-index: 1; padding: 0; margin-top: 0; image-rendering: pixelated; filter: drop-shadow(0 8px 16px rgba(0,0,0,0.45)); }
+.fp-tryon-hat { position: absolute; left: 50%; z-index: 2; transform: translate(-50%, -88%); font-size: 38px; line-height: 1; filter: drop-shadow(0 3px 6px rgba(0,0,0,0.4)); animation: fp-hat 2.6s ease-in-out infinite; }
+@keyframes fp-hat { 50% { transform: translate(-50%, -94%); } }
+.fp-tryon.aura::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--aura) 55%, transparent), transparent 75%); animation: fp-pulse 2.4s ease-in-out infinite; }
+.fp-tryon.aura::after { content: ""; position: absolute; left: 14%; right: 14%; bottom: 6px; height: 18px; border-radius: 50%; border: 2px solid var(--aura); box-shadow: 0 0 14px var(--aura), inset 0 0 10px var(--aura); opacity: 0.9; }
+@keyframes fp-pulse { 50% { transform: scale(1.08); opacity: 0.75; } }
+.fp-paint { display: flex; gap: 6px; margin-top: -2px; }
+.fp-paint i { width: 26px; height: 10px; border-radius: 999px; box-shadow: 0 0 0 1px rgba(255,255,255,0.25); }
+
+/* daily tasks */
+.fp-dailychip { flex-direction: row; align-items: center; gap: 7px; min-height: 36px; padding: 0 12px 0 9px; border-radius: 999px; }
+.fp-dailychip b { font: 700 12px var(--body); }
+.fp-dailychip small { font: 800 11px var(--body); color: var(--gold); }
+.fp-dailychip.all small { color: var(--good); }
+.fp-sun { font-size: 14px; }
+.fp-daily { width: min(460px, 100%); text-align: left; }
+.fp-tasks { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.fp-tasks li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--r-sm); background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); }
+.fp-tasks li.done { border-color: rgba(142,219,124,0.4); background: rgba(142,219,124,0.07); }
+.fp-check { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--rim-hi); font: 800 13px var(--body); font-style: normal; color: var(--ink); }
+.fp-tasks li.done .fp-check { background: var(--good); border-color: var(--good); }
+.fp-task-txt { flex: 1; min-width: 0; display: grid; gap: 6px; }
+.fp-task-txt b { font: 700 13px var(--display); color: var(--text); }
+.fp-task-bar { display: block; height: 6px; border-radius: 999px; background: rgba(255,255,255,0.1); overflow: hidden; }
+.fp-task-bar em { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--gold), #ffd98c); transition: width 300ms ease; }
+.fp-tasks li.done .fp-task-bar em { background: var(--good); }
+.fp-task-rew { flex: none; display: grid; justify-items: end; font: 800 13px var(--display); color: var(--text); }
+.fp-task-rew small { font: 600 10px var(--body); color: var(--faint); }
+.fp-task-bonus { border-style: dashed !important; }

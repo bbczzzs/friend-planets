@@ -25,6 +25,17 @@ type Phase = "loading" | "error" | "title" | "playing";
 type ShopTab = "featured" | "sell" | ItemKind;
 const SHOP_TABS: { id: ShopTab; label: string }[] = [{ id: "featured", label: "Featured" }, { id: "hat", label: "Hats" }, { id: "aura", label: "Auras" }, { id: "rocket", label: "Rockets" }, { id: "gear", label: "Upgrades" }, { id: "item", label: "Items" }, { id: "sell", label: "Sell" }];
 
+/** Your own Friend wearing a hat or aura from the shop, so you see it before you buy. */
+function TryOn({ pilot, item }: { pilot: PilotSprite; item: ShopItem }) {
+  const rows = pilot.clips.idle.down[0], first = Math.max(0, rows.findIndex(line => line.includes("#")));
+  const size = 88, pad = 10, headTop = pad + (first + 1) / 18 * size;
+  const src = spriteCanvas(rows).toDataURL();
+  return <div className={`fp-tryon${item.aura ? " aura" : ""}`} style={item.aura ? { ["--aura" as string]: item.aura.color } : undefined}>
+    <img src={src} width={size} height={size} alt="Your Friend wearing it" />
+    {item.hat && <span className="fp-tryon-hat" style={{ top: `${headTop + 4}px` }}>{item.hat}</span>}
+  </div>;
+}
+
 function Portrait({ pilot, size = 96 }: { pilot: PilotSprite; size?: number }) {
   const src = spriteCanvas(pilot.clips.idle.down[0]).toDataURL();
   return <img className="fp-portrait" src={src} width={size} height={size} alt="" />;
@@ -77,7 +88,7 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
   const [phase, setPhase] = useState<Phase>("loading"), [failure, setFailure] = useState("");
   const [pilot, setPilot] = useState<PilotSprite | null>(null);
   const [hud, setHud] = useState<HudState | null>(null), [toasts, setToasts] = useState<Toast[]>([]);
-  const [muted, setMuted] = useState(true), [panel, setPanel] = useState<"help" | "book" | "online" | "shop" | null>(null), [touch, setTouch] = useState(false);
+  const [muted, setMuted] = useState(true), [panel, setPanel] = useState<"help" | "book" | "online" | "shop" | "daily" | null>(null), [touch, setTouch] = useState(false);
   const [chat, setChat] = useState<string | null>(null);
   const [visitId, setVisitId] = useState("");
   const [slide, setSlide] = useState(0);
@@ -179,6 +190,9 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
               <i className="fp-ring" style={{ ["--p" as string]: `${(hud.quest.n - 1) / hud.quest.total * 100}%` }}>{hud.quest.n}</i>
               <span>{hud.quest.text}</span>
             </div>}
+            {!act && mode === "walk" && <button type="button" className={`fp-pill fp-dailychip${hud.daily.every(t => t.done) ? " all" : ""}`} onClick={() => setPanel("daily")}>
+              <span className="fp-sun">☀️</span><b>Today</b><small>{hud.daily.filter(t => t.done).length}/{hud.daily.length}</small>
+            </button>}
           </div>
           <div className="fp-hud-r">
             <button type="button" className="fp-pill fp-rf" onClick={() => { setShopTab("featured"); setPanel("shop"); }} title="Stars: earned by playing. Tap for the shop."><span className="fp-star">★</span><b>{hud.stars}</b><small>Shop</small></button>
@@ -363,7 +377,8 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
           })}</ul>}
           {checkout && (() => { const item = itemById(checkout)!, owner = hud.wallet.owner, cut = Math.round(item.price * OWNER_CUT * 100) / 100; return <div className="fp-checkout" role="dialog" aria-modal="true" aria-label="Confirm purchase">
             <div className="fp-co-card">
-              <span className="fp-co-ico">{item.icon}</span>
+              {pilot && (item.hat || item.aura) ? <TryOn pilot={pilot} item={item} /> : <span className="fp-co-ico">{item.icon}</span>}
+              {item.colors && <div className="fp-paint" aria-hidden="true"><i style={{ background: item.colors[0] }} /><i style={{ background: item.colors[1] }} /></div>}
               <h3>{item.name}</h3>
               <p>{item.text}</p>
               <div className="fp-co-price"><Coin /><b>{item.price}</b> RF</div>
@@ -379,6 +394,19 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
               </div>
             </div>
           </div>; })()}
+        </div>
+      </div>}
+      {panel === "daily" && hud && <div className="fp-screen" onPointerDown={e => { if (e.target === e.currentTarget) setPanel(null); }}>
+        <div className="fp-card fp-daily" role="dialog" aria-modal="true" aria-label="Today's tasks">
+          <div className="fp-shop-head"><h2>Today</h2><div className="fp-shop-bal fp-starbal"><span className="fp-star">★</span><b>{hud.stars}</b></div><button type="button" className="fp-x" onClick={() => setPanel(null)} aria-label="Close">×</button></div>
+          <p className="fp-sim">Three new tasks every day. Finish all three for a bonus.</p>
+          <ul className="fp-tasks">{hud.daily.map(t => <li key={t.id} className={t.done ? "done" : ""}>
+            <i className="fp-check">{t.done ? "✓" : ""}</i>
+            <span className="fp-task-txt"><b>{t.text}</b><span className="fp-task-bar"><em style={{ width: `${t.n / t.goal * 100}%` }} /></span></span>
+            <span className="fp-task-rew"><span className="fp-star">★</span> {t.reward}<small>{t.n}/{t.goal}</small></span>
+          </li>)}
+            <li className={`fp-task-bonus${hud.daily.every(t => t.done) ? " done" : ""}`}><i className="fp-check">{hud.daily.every(t => t.done) ? "✓" : "🎁"}</i><span className="fp-task-txt"><b>All three done</b></span><span className="fp-task-rew"><span className="fp-star">★</span> 50</span></li>
+          </ul>
         </div>
       </div>}
       {panel === "book" && hud && <div className="fp-screen" onPointerDown={e => { if (e.target === e.currentTarget) setPanel(null); }}>

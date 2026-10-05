@@ -13,6 +13,7 @@ import { GROW_MS, plotsFor, stageOf, type Progress } from "./progress";
 import { SHOP, canBuy, claimDaily, goodsOf, grant, has, itemById, sell, splitFor, stash, useItem, walletOf, type Order, type ShopItem } from "./economy";
 import { payments } from "./payments";
 import { Aura } from "./aura";
+import { countTask, dailyTasks, type TaskEvent, type TaskView } from "./tasks";
 import { Blocks, glowMaterial, litMaterial } from "./models";
 import { CAMERA, OrbitCamera } from "./camera";
 import { Input } from "./input";
@@ -46,7 +47,8 @@ export interface HudState {
   activity: ActivityHud | null;
   book: { fish: { name: string; color: string; rarity: number; caught: number; best: number; here: boolean }[]; crops: { name: string; n: number }[]; trophies: { planet: string; sport: Sport }[]; treasures: { name: string; icon: string; rarity: number; n: number }[]; bugs: { name: string; color: string; rarity: number; n: number }[] };
   race: { countdown: number; time: number; ring: number; total: number; best: number | null } | null;
-  /** Simulated RF wallet (see economy.ts). */
+  daily: TaskView[];
+  /** Shop state (see economy.ts). */
   wallet: { bag: { key: string; name: string; icon: string; n: number; price: number }[]; owned: string[]; equip: { rocket: string; hat: string; aura: string }; items: Record<string, number>; canFertilize: boolean; simulated: boolean; owner: number | null };
 }
 export interface EngineHost {
@@ -738,7 +740,7 @@ export class Engine {
     } else if (stage === 3) {
       const name = plot.crop!, n = has(this.progress, "gear:seeds") ? 2 : 1;
       this.progress.crops[name] = (this.progress.crops[name] ?? 0) + n;
-      this.progress.stars += 3; stash(this.progress, `crop:${name}`, n);
+      this.progress.stars += 3; stash(this.progress, `crop:${name}`, n); this.task("harvest", n);
       plot.crop = null; plot.plantedAt = 0;
       this.audio?.pickup(); this.host.onToast(`Harvested ${n > 1 ? n + " " : ""}${name} · +3 ★`, "good");
     } else {
@@ -876,13 +878,14 @@ export class Engine {
       const entry = p.fish[r.fish.name] ?? { n: 0, best: 0 };
       const first = entry.n === 0;
       entry.n++; entry.best = Math.max(entry.best, r.size); p.fish[r.fish.name] = entry;
-      p.stars += r.fish.rarity * 5; stash(p, `fish:${r.fish.name}`);
+      p.stars += r.fish.rarity * 5; stash(p, `fish:${r.fish.name}`); this.task("fish");
       if (first) this.host.onToast(`New fish for your log: ${r.fish.name}!`, "good");
       this.pendingCheer = { won: true, sport: false };
     } else {
       p.stars += r.stars;
       this.pendingCheer = { won: r.won, sport: true };
       const key = String(planet.spec.id);
+      if (r.won) this.task("sport");
       if (r.won && !p.trophies[key]) { p.trophies[key] = r.sport; this.refreshShelf(); this.host.onToast(`🏆 Trophy from ${planet.spec.name} · +${r.stars} ★`, "good"); }
       else this.host.onToast(`+${r.stars} ★`, r.won ? "good" : "info");
     }
@@ -1116,13 +1119,14 @@ export class Engine {
     this.rocket.land(speed);
     this.cam.addShake(Math.min(1, 0.2 + speed * 0.07));
     this.audio?.land();
-    if (speed < 2.8) { this.progress.stars += 5; this.host.onProgress(this.progress); this.host.onToast("Perfect landing · +5 ★", "good"); this.audio?.fanfare(); }
+    if (speed < 2.8) { this.progress.stars += 5; this.host.onProgress(this.progress); this.host.onToast("Perfect landing · +5 ★", "good"); this.audio?.fanfare(); this.task("landing"); }
     else if (speed < 5.5) { this.progress.stars += 2; this.host.onProgress(this.progress); this.host.onToast("Nice landing · +2 ★", "good"); }
     else { this.audio?.bonk(); this.host.onToast("Bumpy landing! Everyone's fine…", "bad"); }
   }
   private finishLanding(planet: Planet, out: THREE.Vector3) {
     const first = !this.visited.has(planet.spec.index);
     this.visited.add(planet.spec.index);
+    if (!planet.spec.home) this.task("visit");
     if (!this.progress.visited.includes(planet.spec.id)) { this.progress.visited.push(planet.spec.id); this.host.onProgress(this.progress); }
     this.camFrom.copy(this.camera.position); this.camBlend = 1;
     this.cut = null;
@@ -1148,6 +1152,7 @@ export class Engine {
     const cockpitView = inRocket && this.view === "cockpit" && !cinematic;
     const playing = this.mode === "play" && this.activity;
     this.friend.group.visible = this.shadow.visible = cinematic ? Boolean(this.cut) : !inRocket && !playing;
+    if (this.myAura) this.myAura.group.visible = this.friend.group.visible && !cinematic;
     for (const h of this.hosts) h.model.group.visible = h.label.sprite.visible = h.shadow.visible = h !== this.activityHost;
     for (const label of this.spaceLabels) label.sprite.visible = this.mode === "fly";
 
@@ -1202,6 +1207,7 @@ export class Engine {
       this.friend.group.quaternion.copy(this.Q).multiply(tmpQ.setFromAxisAngle(Y, this.cam.yaw));
       const ground = tmpB.copy(this.n).multiplyScalar(this.current.surface(this.n) + 0.05).add(this.current.group.position);
       this.shadow.position.copy(ground); this.shadow.quaternion.copy(this.Q); this.shadow.scale.setScalar(1 / (1 + this.hop * 0.3));
+      if (this.myAura) { this.myAura.group.position.copy(ground); this.myAura.group.quaternion.copy(this.Q); }
       skyUp = tmpC.copy(this.n);
     } else {
       const nose = tmpA.set(0, 1, 0).applyQuaternion(this.ship.o);
@@ -1369,13 +1375,23 @@ export class Engine {
   private wearAura() {
     this.myAura?.dispose(); this.myAura = null;
     const look = itemById(walletOf(this.progress).equip.aura)?.aura;
-    if (look) { this.myAura = new Aura(look.color, look.sparkle); this.friend.group.add(this.myAura.group); }
+    if (look) { this.myAura = new Aura(look.color, look.sparkle); this.scene.add(this.myAura.group); }
   }
   sell(key: string) {
+    const bag = walletOf(this.progress).bag, items = key === "all" ? Object.values(bag).reduce((a, b) => a + b, 0) : bag[key] ?? 0;
     const got = sell(this.progress, key);
     if (!got) return;
+    this.task("sell", items);
     this.host.onToast(`Sold for ${got} ★`, "good"); this.celebrate("★"); this.audio?.pickup();
     this.host.onProgress(this.progress); this.emitHud();
+  }
+  /** Counts toward today's tasks and celebrates any that just finished. */
+  private task(event: TaskEvent, n = 1) {
+    const done = countTask(this.progress, event, n);
+    if (!done.length) return;
+    for (const d of done) this.host.onToast(`☀️ Daily task done: ${d.text} · +${d.stars} ★`, "good");
+    this.audio?.fanfare(); this.celebrate("☀️");
+    this.host.onProgress(this.progress);
   }
   fertilize() {
     if (this.mode !== "walk") return;
@@ -1427,6 +1443,7 @@ export class Engine {
       activity: this.mode === "play" && this.activity ? this.activity.hud() : null,
       book: this.book(),
       wallet: this.walletHud(),
+      daily: dailyTasks(this.progress),
     };
     const key = JSON.stringify(state);
     if (key !== this.hudKey) { this.hudKey = key; this.host.onHud(state); }
@@ -1450,12 +1467,12 @@ export class Engine {
     if (e.kind === "dig") {
       find = x.dig(e.i, this.current.spec.family);
       p.treasures = { ...(p.treasures ?? {}), [find.name]: (p.treasures?.[find.name] ?? 0) + 1 };
-      stash(p, `treasure:${find.name}`);
+      stash(p, `treasure:${find.name}`); this.task("dig");
       this.cam.addShake(0.3); this.audio?.rustle();
     } else {
       find = x.catchBug(e.i);
       p.bugs = { ...(p.bugs ?? {}), [find.name]: (p.bugs?.[find.name] ?? 0) + 1 };
-      stash(p, `bug:${find.name}`);
+      stash(p, `bug:${find.name}`); this.task("bug");
       this.audio?.swish();
     }
     const stars = find.rarity * 4;
@@ -1490,6 +1507,7 @@ export class Engine {
     const p = this.progress, key = String(this.current.spec.id), best = p.raceBest?.[key];
     const record = best === undefined || r.t < best;
     p.raceBest = { ...(p.raceBest ?? {}), [key]: record ? Math.round(r.t * 10) / 10 : best! };
+    this.task("race");
     const stars = r.t < 30 ? 20 : r.t < 45 ? 12 : 6;
     p.stars += stars; this.host.onProgress(p);
     this.host.onToast(`🛹 ${r.t.toFixed(1)}s${record ? " · new best!" : ` · best ${best!.toFixed(1)}s`} · +${stars} ★`, "good");

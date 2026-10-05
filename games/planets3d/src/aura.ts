@@ -15,15 +15,15 @@ export class Aura {
   private ring: THREE.Mesh;
   private seeds: { a: number; r: number; y: number; v: number }[] = [];
   constructor(color: string, sparkle: string) {
-    const glow = new THREE.Color(color).multiplyScalar(1.6);
-    this.ring = new THREE.Mesh(RING, new THREE.MeshBasicMaterial({ color: glow, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending }));
+    // Keep the hue: a slightly-over-one colour still blooms when bloom is on, without washing out to white.
+    this.ring = new THREE.Mesh(RING, new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(1.15), transparent: true, opacity: 0.95, depthWrite: false }));
     this.ring.position.y = 0.05;
-    const disc = new THREE.Mesh(DISC, new THREE.MeshBasicMaterial({ color: new THREE.Color(color), transparent: true, opacity: 0.16, depthWrite: false }));
+    const disc = new THREE.Mesh(DISC, new THREE.MeshBasicMaterial({ color: new THREE.Color(color), transparent: true, opacity: 0.28, depthWrite: false }));
     disc.position.y = 0.04;
     const pos = new Float32Array(SPARKS * 3);
     for (let i = 0; i < SPARKS; i++) this.seeds.push({ a: Math.random() * Math.PI * 2, r: 0.45 + Math.random() * 0.45, y: Math.random() * HEIGHT, v: 0.45 + Math.random() * 0.5 });
     const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    this.sparks = new THREE.Points(geo, new THREE.PointsMaterial({ color: new THREE.Color(sparkle).multiplyScalar(1.5), size: 0.13, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending }));
+    this.sparks = new THREE.Points(geo, new THREE.PointsMaterial({ color: new THREE.Color(sparkle), size: 0.17, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending }));
     this.sparks.frustumCulled = false;
     this.ring.renderOrder = disc.renderOrder = this.sparks.renderOrder = 3;
     this.group.add(disc, this.ring, this.sparks);
@@ -38,8 +38,6 @@ export class Aura {
       pos.setXYZ(i, Math.cos(a) * s.r, s.y, Math.sin(a) * s.r);
     });
     pos.needsUpdate = true;
-    // Sparkles fade out near the top.
-    (this.sparks.material as THREE.PointsMaterial).opacity = 0.95;
   }
   dispose() {
     this.group.removeFromParent();
