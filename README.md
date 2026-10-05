@@ -6,7 +6,7 @@ Rare Friends Vibeathon · **Character Spotlight** · FriendSDK **v0.1.4** · thr
 
 ![Friend Planets](media/friend-planets.gif)
 
-🎮 **Play: https://bbczzzs.github.io/friend-planets/** requires a browser wallet on Robinhood mainnet (4663) holding a hardwired Rare Friends Generations NFT (gen ≥ 1): the SDK's standard gate. No RF, signature or transaction is ever used.
+🎮 **Play: https://bbczzzs.github.io/friend-planets/** requires a browser wallet on Robinhood mainnet (4663) holding a hardwired Rare Friends Generations NFT (gen ≥ 1): the SDK's standard gate. RF purchases are simulated in this preview: no RF, signature or transaction is used.
 
 👀 **No wallet? About page with the trailer:** https://bbczzzs.github.io/friend-planets/preview/
 
@@ -28,13 +28,14 @@ Rare Friends Vibeathon · **Character Spotlight** · FriendSDK **v0.1.4** · thr
 - **Something to do everywhere**: fishing with a real fight, farming, treasure, butterflies, a ring race around the planet, and penalties, tennis or boxing against the planet's Friend.
 - **Alive**: planet Friends wander, greet you in their family's voice and react to your matches; Friends you visit come to your campfire; a quest list and collection book guide you.
 - **Online**: other players' Friends on your planet, chat and emotes, and a who's-online list that flies you to them. Peer to peer, no server, no wallet addresses shared.
+- **Economy**: play to earn ★ Stars (catches, harvests, quests, sports, races, three daily tasks) and sell what you collect at the market; Stars buy bait, fertilizer, upgrades and starter looks. Premium hats, glowing auras and rocket paint cost RF through a wallet-style checkout (try it on first), and other players see them. The game never gives out RF; buying on another Friend's planet sends 10% to its owner. Fixed prices, no loot boxes. Hand-off for the Rare Friends team: [`ECONOMY.md`](ECONOMY.md).
 
 Full rules, controls, checks and known issues: [`games/planets3d/README.md`](games/planets3d/README.md).
 
 ## Repository layout
 
 - `index.html`, `game.*`, `runtime.*`, `layout.css`, `net.js`, `assets/`: the built static preview served by GitHub Pages
-- `games/planets3d/`: the game (`index.tsx` UI; `src/engine.ts` world, rocket, landing, online; `planet.ts` planets and portraits; `activities.ts` fishing and sports; `extras.ts` treasure, butterflies and the ring race; `look.ts` cel shading, outlines, grass, particles; `galaxy.ts`, `data.ts`, `progress.ts`, `net.ts`)
+- `games/planets3d/`: the game (`index.tsx` UI; `src/engine.ts` world, rocket, landing, online; `planet.ts` planets and portraits; `activities.ts` fishing and sports; `extras.ts` treasure, butterflies and the ring race; `economy.ts` Stars, shop and orders; `payments.ts` where RF purchases connect; `tasks.ts` daily tasks; `aura.ts` auras; `look.ts` cel shading, outlines, grass, particles; `galaxy.ts`, `data.ts`, `progress.ts`, `net.ts`)
 - `host/net.ts`: the online bridge that runs in the host page (the SDK keeps the game frame offline)
 - `tools/add-net.mjs`: adds the online bridge to the build
 - `test-interaction.mjs`: interaction test in the SDK's automated runtime
