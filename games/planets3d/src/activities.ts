@@ -163,8 +163,8 @@ export class Fishing extends Activity {
     this.bobber.visible = false;
     this.line = this.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: "#ffffff" })));
     const ring = new THREE.RingGeometry(0.28, 0.4, 28); ring.rotateX(-Math.PI / 2);
-    this.reticle = this.add(new THREE.Mesh(ring, new THREE.MeshBasicMaterial({ color: "#ccff00", transparent: true, opacity: 0.9, depthWrite: false })));
-    this.bang = new Label(0.7); this.bang.set([{ text: "!", color: "#ccff00", size: 64 }]); this.bang.sprite.visible = false;
+    this.reticle = this.add(new THREE.Mesh(ring, new THREE.MeshBasicMaterial({ color: "#f2c46b", transparent: true, opacity: 0.9, depthWrite: false })));
+    this.bang = new Label(0.7); this.bang.set([{ text: "!", color: "#f2c46b", size: 64 }]); this.bang.sprite.visible = false;
     this.add(this.bang.sprite);
     for (let i = 0; i < 3; i++) {
       const rg = new THREE.RingGeometry(0.3, 0.38, 32); rg.rotateX(-Math.PI / 2);
@@ -498,7 +498,7 @@ export class Penalty extends Activity {
     this.ball.children[0].add(dots.mesh(litMaterial));
     this.ballShadow = this.add(blobShadow(0.22));
     const ring = new THREE.RingGeometry(0.24, 0.36, 24);
-    this.reticle = this.add(new THREE.Mesh(ring, new THREE.MeshBasicMaterial({ color: "#ccff00", side: THREE.DoubleSide, depthTest: false, transparent: true })));
+    this.reticle = this.add(new THREE.Mesh(ring, new THREE.MeshBasicMaterial({ color: "#f2c46b", side: THREE.DoubleSide, depthTest: false, transparent: true })));
     this.reticle.renderOrder = 6;
     this.setupShoot();
   }

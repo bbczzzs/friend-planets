@@ -1,6 +1,6 @@
 # Friend Planets 🪐
 
-**Every Rare Friend is a planet.** Your Generations Friend's own on-chain pixels are raised across its tiny 3D planet as a giant portrait. Walk all the way around it, fly your rocket from the cockpit to other Friends' planets, land (softly), and play: fishing, farming, treasure, butterflies, a hoverboard ring race, and a sport against each planet's Friend. Everyone online shares the galaxy.
+**Every Rare Friend is a planet.** Your Generations Friend's own on-chain pixels are raised across its tiny 3D planet as a giant portrait. Walk all the way around it, fly your rocket from the cockpit to other Friends' planets, land (softly), and play: fishing, farming, treasure, butterflies, and a sport against each planet's Friend. Everyone online shares the galaxy.
 
 Rare Friends Vibeathon · **Character Spotlight** · FriendSDK **v0.1.4** · three.js · peer-to-peer online with Trystero.
 
@@ -15,8 +15,8 @@ Rare Friends Vibeathon · **Character Spotlight** · FriendSDK **v0.1.4** · thr
 | Your Friend is the planet | Standing on your own face | Cockpit | Landing burn |
 |---|---|---|---|
 | ![Portrait planet](media/portrait-planet.png) | ![On your face](media/on-your-face.png) | ![Cockpit](media/cockpit.png) | ![Landing](media/landing.png) |
-| **Fishing fight** | **Boxing** | **Hoverboard ring race** | **Other players online** |
-| ![Fishing](media/fishing.png) | ![Boxing](media/boxing.png) | ![Race](media/race.png) | ![Online](media/online.png) |
+| **Fishing fight** | **Boxing** | | **Other players online** |
+| ![Fishing](media/fishing.png) | ![Boxing](media/boxing.png) | | ![Online](media/online.png) |
 
 ## In one minute
 
@@ -28,7 +28,7 @@ Rare Friends Vibeathon · **Character Spotlight** · FriendSDK **v0.1.4** · thr
 - **Something to do everywhere**: fishing with a real fight, farming, treasure, butterflies, a ring race around the planet, and penalties, tennis or boxing against the planet's Friend.
 - **Alive**: planet Friends wander, greet you in their family's voice and react to your matches; Friends you visit come to your campfire; a quest list and collection book guide you.
 - **Online**: other players' Friends on your planet, chat and emotes, and a who's-online list that flies you to them. Peer to peer, no server, no wallet addresses shared.
-- **Economy**: play to earn ★ Stars (catches, harvests, quests, sports, races, three daily tasks) and sell what you collect at the market; Stars buy bait, fertilizer, upgrades and starter looks. Premium hats, glowing auras and rocket paint cost RF through a wallet-style checkout (try it on first), and other players see them. The game never gives out RF; buying on another Friend's planet sends 10% to its owner. Fixed prices, no loot boxes. Hand-off for the Rare Friends team: [`ECONOMY.md`](ECONOMY.md).
+- **Economy**: play to earn ★ Stars (catches, harvests, quests, sports, three daily tasks) and sell what you collect at the market; Stars buy bait, fertilizer, upgrades and starter looks. Premium hats, glowing auras and rocket paint cost RF through a wallet-style checkout (try it on first), and other players see them. The game never gives out RF; buying on another Friend's planet sends 10% to its owner. Fixed prices, no loot boxes. Hand-off for the Rare Friends team: [`ECONOMY.md`](ECONOMY.md).
 
 Full rules, controls, checks and known issues: [`games/planets3d/README.md`](games/planets3d/README.md).
 

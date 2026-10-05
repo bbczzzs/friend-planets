@@ -18,7 +18,7 @@ type Toast = { id: number; text: string; kind: ToastKind };
 const SLIDES = [
   { icon: "🪐", title: "Every Friend is a planet", text: "Your Friend's own on-chain pixels are drawn across its planet. Walk all the way around it: day on one side, stars and fireflies on the other." },
   { icon: "🚀", title: "Fly between Friends", text: "Board your rocket, fly from the cockpit and land softly on other Friends' planets. Discover any Friend in the collection by its token number." },
-  { icon: "🎣", title: "Something to do everywhere", text: "Fish, farm, dig for treasure, catch butterflies, race a hoverboard through rings, and beat each planet's Friend at penalties, tennis or boxing." },
+  { icon: "🎣", title: "Something to do everywhere", text: "Fish, farm, dig for treasure, catch butterflies, and play each planet's Friend at penalties, tennis or boxing." },
   { icon: "🌐", title: "Meet other players", text: "Everyone online shares the galaxy: see their Friends, chat and wave. Your family perk changes how you play, and Friends you visit come to your campfire." },
   { icon: "★", title: "Earn Stars, look premium", text: "Sell what you catch and grow, finish daily tasks, and spend Stars on upgrades. Premium hats, glowing auras and rocket paint make your Friend stand out to everyone online." },
 ];
@@ -236,11 +236,7 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
         {mode === "walk" && hud.prompt && <button type="button" className="fp-prompt" onClick={() => engine.current?.useNearest()}>
           <kbd>E</kbd><span><b>{hud.prompt.title}</b>{hud.prompt.detail && <small>{hud.prompt.detail}</small>}</span>
         </button>}
-        {(mode === "walk" || mode === "race") && touch && <button type="button" className="fp-jump" onPointerDown={() => engine.current?.jump()} aria-label="Jump">⤒</button>}
-        {mode === "race" && hud.race && <div className="fp-racehud">
-          {hud.race.countdown > 0 ? <div key={hud.race.countdown} className="fp-count">{hud.race.countdown}</div> : <div className="fp-racetime"><b>{hud.race.time.toFixed(1)}s</b><span>Ring {Math.min(hud.race.ring + 1, hud.race.total)}/{hud.race.total}{hud.race.best ? ` · best ${hud.race.best.toFixed(1)}s` : ""}</span></div>}
-          <p className="fp-act-hint">A / D (or the stick) steer · Space jumps for high rings · Shift boosts · Esc quits</p>
-        </div>}
+        {mode === "walk" && touch && <button type="button" className="fp-jump" onPointerDown={() => engine.current?.jump()} aria-label="Jump">⤒</button>}
         {mode === "walk" && <div className="fp-chatbar">
           {chat === null ? <button type="button" className="fp-icon fp-glass" onClick={() => setChat("")} aria-label="Chat (T)" title="Chat (T)"><Icon name="chat" /></button>
             : <input autoFocus maxLength={80} placeholder="Say something… (Enter to send)" enterKeyHint="send" value={chat} onChange={e => setChat(e.target.value)}
@@ -401,7 +397,7 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
                 <button type="button" className="fp-buy" onClick={() => engine.current?.sell(g.key)}>Sell ★ {g.n * g.price}</button>
               </li>)}</ul>
               <button type="button" className="fp-cta" onClick={() => engine.current?.sell("all")}>Sell everything · ★ {hud.wallet.bag.reduce((n, g) => n + g.n * g.price, 0)}</button>
-            </> : <p className="fp-empty">Your bag is empty. Fish, farm, dig for treasure and catch butterflies, then sell them here for ★. Quests, sports, races and good landings pay ★ too.</p>}
+            </> : <p className="fp-empty">Your bag is empty. Fish, farm, dig for treasure and catch butterflies, then sell them here for ★. Quests, sports and good landings pay ★ too.</p>}
           </> : <ul className="fp-items">{SHOP.filter(i => i.kind === shopTab).map(i => {
             const owned = hud.wallet.owned.includes(i.id), worn = Object.values(hud.wallet.equip).includes(i.id), count = hud.wallet.items[i.id] ?? 0;
             const short = i.currency === "star" && hud.stars < i.price;

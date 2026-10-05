@@ -16,7 +16,6 @@ export interface Progress {
   quests?: string[];
   treasures?: Record<string, number>;
   bugs?: Record<string, number>;
-  raceBest?: Record<string, number>; // planet token id → best lap in seconds
   wallet?: Wallet; // see economy.ts
   tasks?: TaskState; // today's daily tasks, see tasks.ts
 }

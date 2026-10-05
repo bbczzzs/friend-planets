@@ -1,7 +1,6 @@
 /**
- * Little things all over each planet: sparkling spots to dig up treasure,
- * butterflies to catch, and a hoverboard ring course that loops all the way
- * around the planet. Built when you arrive, cleared when you leave.
+ * Little things all over each planet: sparkling spots to dig up treasure and
+ * butterflies to catch. Built when you arrive, cleared when you leave.
  */
 import * as THREE from "three";
 import { Blocks, glowMaterial, litMaterial } from "./models";
@@ -18,7 +17,7 @@ export const TREASURES: Find[] = [
 /** Each family's planet hides one rare treasure of its own. */
 export const FAMILY_TREASURE: Find[] = [
   { name: "Frozen crown", icon: "👑", rarity: 4, color: "#bcd8f2" }, { name: "Golden mask", icon: "🎭", rarity: 4, color: "#f2c14e" },
-  { name: "Grandma's locket", icon: "📿", rarity: 4, color: "#ed927e" }, { name: "Glow spore", icon: "🍄", rarity: 4, color: "#ccff00" },
+  { name: "Grandma's locket", icon: "📿", rarity: 4, color: "#ed927e" }, { name: "Glow spore", icon: "🍄", rarity: 4, color: "#a8f0c8" },
   { name: "Crooked compass", icon: "🧭", rarity: 4, color: "#d9a05b" }, { name: "Candy crystal", icon: "🍬", rarity: 4, color: "#f6aacb" },
   { name: "Giant's tooth", icon: "🦷", rarity: 4, color: "#f4f1ea" }, { name: "Rainbow pearl", icon: "🫧", rarity: 4, color: "#7ff3ff" },
   { name: "Echo shell", icon: "🐚", rarity: 4, color: "#b3a0d8" },
@@ -38,68 +37,20 @@ const pickBy = (list: Find[], r: () => number) => {
 
 type Dig = { n: THREE.Vector3; group: THREE.Group; wait: number };
 type Bug = { n: THREE.Vector3; target: THREE.Vector3; lift: number; kind: Find; group: THREE.Group; wings: THREE.Mesh[]; wait: number; phase: number };
-export type Ring = { pos: THREE.Vector3; mesh: THREE.Mesh };
 
 export class Extras {
   readonly group = new THREE.Group();
   readonly digs: Dig[] = [];
   readonly bugs: Bug[] = [];
-  readonly rings: Ring[] = [];
-  readonly raceStart: THREE.Vector3;
   private rand: () => number;
-  private flag: THREE.Group;
 
   constructor(readonly planet: Planet) {
     this.rand = mulberry32(planet.spec.seed ^ 0xe7a5);
     planet.group.add(this.group);
     for (let i = 0; i < 4; i++) this.digs.push(this.makeDig());
     for (let i = 0; i < 6; i++) this.bugs.push(this.makeBug());
-    // Ring course: a loop around the planet through the base, clear of the buildings.
-    const base = planet.baseUp, R = planet.R;
-    let bestAxis = new THREE.Vector3(1, 0, 0), bestScore = -1;
-    for (let k = 0; k < 24; k++) {
-      const axis = new THREE.Vector3().crossVectors(base, new THREE.Vector3(this.rand() - 0.5, this.rand() - 0.5, this.rand() - 0.5)).normalize();
-      let score = Infinity;
-      for (let i = 0; i < 40; i++) score = Math.min(score, this.clearance(base.clone().applyAxisAngle(axis, (i / 40) * TAU)));
-      if (score > bestScore) { bestScore = score; bestAxis = axis; }
-    }
-    const count = 10;
-    let startAngle = 0.3, bestClear = -Infinity;
-    for (let a = 0.2; a <= 0.95; a += 0.03) { const c = this.clearance(base.clone().applyAxisAngle(bestAxis, a)); if (c > bestClear) { bestClear = c; startAngle = a; } }
-    for (let i = 0; i < count; i++) {
-      const wobble = new THREE.Vector3().crossVectors(bestAxis, base).normalize();
-      const n = base.clone().applyAxisAngle(bestAxis, startAngle + 0.22 + (i / count) * TAU).applyAxisAngle(wobble, Math.sin(i * 1.7) * 0.12).normalize();
-      const ground = Math.max(planet.height(n), planet.water + 0.2);
-      const lift = 1.9 + (i % 3 === 2 ? 1.4 : 0) + this.rand() * 0.5;
-      const pos = n.clone().multiplyScalar(ground + lift);
-      const tangent = new THREE.Vector3().crossVectors(bestAxis, n).normalize();
-      const geo = new THREE.TorusGeometry(1.6, 0.17, 10, 32);
-      const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color("#ccff00").multiplyScalar(1.4), transparent: true, opacity: 0.9 }));
-      mesh.position.copy(pos);
-      mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(n, tangent), n, tangent));
-      this.group.add(mesh);
-      this.rings.push({ pos, mesh });
-    }
-    // Start flag by the first ring.
-    const startN = this.rings[0].pos.clone().normalize();
-    const flagN = base.clone().applyAxisAngle(bestAxis, startAngle).normalize();
-    void startN;
-    this.raceStart = flagN.clone().multiplyScalar(planet.surface(flagN));
-    const f = new Blocks().at(surfaceFrame(flagN, startN, planet.surface(flagN)))
-      .box(0.14, 3, 0.14, -1.6, 1.5, 0, "#4a4f5c").box(0.14, 3, 0.14, 1.6, 1.5, 0, "#4a4f5c");
-    for (let i = 0; i < 8; i++) f.box(0.4, 0.4, 0.06, -1.4 + i * 0.4, 2.8, 0, i % 2 ? "#111111" : "#ffffff").box(0.4, 0.4, 0.06, -1.4 + i * 0.4, 2.4, 0, i % 2 ? "#ffffff" : "#111111");
-    this.flag = new THREE.Group(); this.flag.add(f.mesh(litMaterial)); this.group.add(this.flag);
-    this.showRings(-1);
   }
 
-  /** How far a spot is from anything that needs a clear view (stations, the dock, the lake). */
-  private clearance(n: THREE.Vector3) {
-    const planet = this.planet, p = n.clone().multiplyScalar(planet.R);
-    let c = Infinity;
-    for (const s of planet.stations) c = Math.min(c, p.distanceTo(s.pos) - s.flat - (s.kind === "pond" ? 6 : 0));
-    if (planet.pond) c = Math.min(c, p.distanceTo(planet.pond.clone().setLength(planet.R)) - 9);
-    return c;
-  }
   private spot(maxAngle: number) {
     const planet = this.planet, R = planet.R;
     for (let i = 0; i < 60; i++) {
@@ -137,17 +88,6 @@ export class Extras {
     return { n, target: n.clone(), lift: 1.2 + this.rand(), kind, group, wings, wait: 0, phase: this.rand() * 10 };
   }
 
-  /** Highlight the next ring (or all, softly, when no race is on). */
-  showRings(next: number) {
-    this.rings.forEach((r, i) => {
-      const m = r.mesh.material as THREE.MeshBasicMaterial;
-      const active = next < 0 || i >= next;
-      r.mesh.visible = active;
-      m.opacity = next < 0 ? 0.45 : i === next ? 1 : 0.35;
-      m.color.set(i === next ? "#ccff00" : "#f2ce68").multiplyScalar(i === next ? 1.6 : 1.1);
-    });
-  }
-
   update(dt: number, t: number) {
     const planet = this.planet, R = planet.R;
     for (const d of this.digs) {
@@ -167,7 +107,6 @@ export class Extras {
       const flap = Math.sin(t * 18 + b.phase) * 0.9;
       b.wings.forEach(w => { (w.parent as THREE.Object3D).rotation.set(0, (w.userData.side as number) * flap * 0.8, 0); });
     }
-    for (const r of this.rings) r.mesh.rotateZ(dt * 0.6);
   }
 
   /** The dig spot or bug near you (planet-local position `p`). */

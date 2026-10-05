@@ -43,7 +43,7 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
 
 /* the glass surface, shared */
 .fp-pill, .fp-icon, .fp-bar-r, .fp-prompt, .fp-toast, .fp-chip, .fp-view, .fp-land, .fp-discover, .fp-act-title, .fp-act-score, .fp-act-hint,
-.fp-readout, .fp-racetime, .fp-emotes, .fp-chatbar input, .fp-side, .fp-boost, .fp-thrust, .fp-jump, .fp-gauge {
+.fp-readout, .fp-emotes, .fp-chatbar input, .fp-side, .fp-boost, .fp-thrust, .fp-jump, .fp-gauge {
   background-color: var(--glass); background-image: var(--sheen);
   border: 1px solid var(--rim); box-shadow: var(--lift);
   -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
@@ -268,13 +268,6 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
 .fp-chatbar input::placeholder { color: var(--faint); }
 .fp-chatbar input:focus { outline: none; border-color: var(--rim-hi); }
 @media (max-width: 640px) { .fp-chatbar { bottom: calc(var(--safe-b) + 70px); } }
-
-/* ring race */
-.fp-racehud { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
-.fp-racetime { position: absolute; left: 50%; top: 64px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; padding: 8px 20px; border-radius: var(--r); }
-.fp-racetime b { font: 900 28px/1 var(--display); color: var(--gold); }
-.fp-racetime span { font: 500 11px var(--body); color: var(--muted); }
-.fp-racehud .fp-act-hint { position: absolute; left: 50%; bottom: var(--safe-b); transform: translateX(-50%); }
 
 /* title screen */
 .fp-title .fp-card h1 { font-family: var(--pixel); font-weight: 700; font-size: 30px; letter-spacing: 0; }

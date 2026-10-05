@@ -4,7 +4,7 @@
  */
 import type { Progress } from "./progress";
 
-export type TaskEvent = "fish" | "harvest" | "sell" | "sport" | "race" | "visit" | "dig" | "bug" | "landing";
+export type TaskEvent = "fish" | "harvest" | "sell" | "sport" | "visit" | "dig" | "bug" | "landing";
 interface TaskDef { id: string; event: TaskEvent; goal: number; reward: number; text: (goal: number) => string }
 
 const POOL: TaskDef[] = [
@@ -12,7 +12,6 @@ const POOL: TaskDef[] = [
   { id: "harvest", event: "harvest", goal: 4, reward: 25, text: g => `Harvest ${g} crops` },
   { id: "sell", event: "sell", goal: 5, reward: 25, text: g => `Sell ${g} things at the market` },
   { id: "sport", event: "sport", goal: 1, reward: 40, text: () => "Win a match on a Friend's planet" },
-  { id: "race", event: "race", goal: 1, reward: 30, text: () => "Finish a hoverboard ring race" },
   { id: "visit", event: "visit", goal: 2, reward: 35, text: g => `Land on ${g} Friends' planets` },
   { id: "dig", event: "dig", goal: 2, reward: 25, text: g => `Dig up ${g} treasures` },
   { id: "bug", event: "bug", goal: 2, reward: 20, text: g => `Catch ${g} butterflies` },

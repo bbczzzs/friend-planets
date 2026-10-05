@@ -29,7 +29,7 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { orbitFor, planetSpecFor, type World } from "./galaxy";
 import type { ValleyAudio } from "../audio";
 
-export type Mode = "walk" | "board" | "launch" | "fly" | "land" | "play" | "intro" | "race";
+export type Mode = "walk" | "board" | "launch" | "fly" | "land" | "play" | "intro";
 export type LandPhase = "entry" | "flip" | "descent" | "touch" | "exit";
 export type ToastKind = "info" | "good" | "bad";
 export interface PlanetInfo { index: number; name: string; region: string; home: boolean; host: number | null; sport: Sport | null; fishing: boolean; farm: boolean; visited: boolean }
@@ -46,7 +46,6 @@ export interface HudState {
   stars: number;
   activity: ActivityHud | null;
   book: { fish: { name: string; color: string; rarity: number; caught: number; best: number; here: boolean }[]; crops: { name: string; n: number }[]; trophies: { planet: string; sport: Sport }[]; treasures: { name: string; icon: string; rarity: number; n: number }[]; bugs: { name: string; color: string; rarity: number; n: number }[] };
-  race: { countdown: number; time: number; ring: number; total: number; best: number | null } | null;
   daily: TaskView[];
   streak: number;
   /** Shop state (see economy.ts). */
@@ -84,13 +83,12 @@ type PeerView = {
   id: string; s: PeerState; model: FriendBillboard; label: Label; bubble: Label; bubbleT: number; shadow: THREE.Mesh; hat: Label; hatY: number; aura: Aura | null; auraId: string;
   n: THREE.Vector3; world: THREE.Vector3; hop: number; vy: number; clipsFor: number; seen: number;
 };
-type Quest = { id: string; text: string; target: "pond" | "farm" | "pad" | "sport" | "dig" | "bug" | "race"; done: (e: Engine) => boolean };
+type Quest = { id: string; text: string; target: "pond" | "farm" | "pad" | "sport" | "dig" | "bug"; done: (e: Engine) => boolean };
 const QUESTS: Quest[] = [
   { id: "fish", text: "Catch a fish off the dock", target: "pond", done: e => Object.keys(e.progress.fish).length > 0 },
   { id: "plant", text: "Plant a crop on your farm", target: "farm", done: e => Object.values(e.progress.farms).some(f => f.some(p => p.crop)) || Object.keys(e.progress.crops).length > 0 },
   { id: "dig", text: "Dig up a treasure (look for sparkles)", target: "dig", done: e => Object.keys(e.progress.treasures ?? {}).length > 0 },
   { id: "bug", text: "Catch a butterfly", target: "bug", done: e => Object.keys(e.progress.bugs ?? {}).length > 0 },
-  { id: "race", text: "Finish the hoverboard ring race", target: "race", done: e => Object.keys(e.progress.raceBest ?? {}).length > 0 },
   { id: "fly", text: "Fly your rocket to a Friend's planet", target: "pad", done: e => e.progress.visited.some(id => id !== e.planets[0].spec.id) },
   { id: "sport", text: "Beat a Friend at their sport", target: "sport", done: e => Object.keys(e.progress.trophies).length > 0 },
   { id: "harvest", text: "Harvest a crop", target: "farm", done: e => Object.values(e.progress.crops).some(n => n > 0) },
@@ -183,9 +181,7 @@ export class Engine {
   private pendingGo: number | null = null;
   onlineEnabled = true;
   extras: Extras | null = null;
-  private promptExtra: { kind: "dig" | "bug" | "race"; i: number } | null = null;
-  private race = { t: 0, ring: 0, heading: 0, speed: 0, hover: 0 };
-  private board3d: THREE.Mesh;
+  private promptExtra: { kind: "dig" | "bug"; i: number } | null = null;
   private myHat = new Label(0.8);
   constructor(private elements: EngineElements, world: World, private clips: Clips, private friendId: bigint, private host: EngineHost, private audio: ValleyAudio | null, readonly progress: Progress) {
     this.renderer = new THREE.WebGLRenderer({ canvas: elements.canvas, antialias: true, powerPreference: "high-performance" });
@@ -236,8 +232,6 @@ export class Engine {
     if (this.perk.id === "glow") { this.glowLight = new THREE.PointLight(home.spec.theme.glow, 0, 10, 1.6); this.glowLight.position.set(0, 1.4, 0.3); this.friend.group.add(this.glowLight); }
     this.cheer.sprite.visible = false; this.scene.add(this.cheer.sprite);
     this.myBubble.sprite.visible = false; this.scene.add(this.myBubble.sprite);
-    this.board3d = new Blocks().box(1.7, 0.14, 0.75, 0, 0.1, 0, "#1f1c2b").box(1.5, 0.05, 0.55, 0, 0.19, 0, "#ccff00").mesh(glowMaterial);
-    this.board3d.visible = false; this.friend.group.add(this.board3d);
     try { this.onlineEnabled = window.localStorage.getItem("friend-planets-3d:online") !== "off"; } catch { /* default on */ }
     this.net.onPeer = (id, st) => this.peerState(id, st);
     this.net.onLeave = id => this.dropPeer(id);
@@ -278,7 +272,7 @@ export class Engine {
   // ---------------------------------------------------------------- setup helpers
   private addHost(planet: Planet, clips: Clips, id: number, visitor = false, at?: THREE.Vector3) {
     const model = new FriendBillboard(clips), label = new Label(0.45), shadow = blobShadow(0.8), bubble = new Label(0.36);
-    label.set([{ text: `Friend #${id}`, color: "#ccff00", size: 34 }]);
+    label.set([{ text: `Friend #${id}`, color: "#f2c46b", size: 34 }]);
     bubble.sprite.visible = false;
     const arena = planet.stations.find(s => s.kind === "sport");
     const n = (at ?? (arena ? planet.baseUp.clone().lerp(arena.n, 0.55) : planet.dir(4.5 / planet.R, 0.6))).normalize();
@@ -338,7 +332,7 @@ export class Engine {
   // ---------------------------------------------------------------- online
   private sendState() {
     if (this.net.status !== "online") return;
-    const onPlanet = this.mode === "walk" || this.mode === "play" || this.mode === "board" || this.mode === "intro" || this.mode === "race";
+    const onPlanet = this.mode === "walk" || this.mode === "play" || this.mode === "board" || this.mode === "intro";
     const r3 = (v: THREE.Vector3): [number, number, number] => [Math.round(v.x * 1e4) / 1e4, Math.round(v.y * 1e4) / 1e4, Math.round(v.z * 1e4) / 1e4];
     const d = this.moveDir.lengthSq() > 0 ? this.moveDir.clone().normalize() : new THREE.Vector3(1, 0, 0);
     this.net.state({ f: Number(this.friendId), fam: this.homeFamily % 9, p: onPlanet ? this.current.spec.id : 0, n: r3(this.n), d: r3(d), m: this.moving && this.mode === "walk", mode: this.mode, act: this.activity?.kind ?? "", h: walletOf(this.progress).equip.hat, a: walletOf(this.progress).equip.aura });
@@ -385,7 +379,7 @@ export class Engine {
     const planet = this.current;
     for (const p of this.peers.values()) {
       if (this.time - p.seen > 20) { this.dropPeer(p.id); continue; }
-      const here = p.s.p === planet.spec.id && p.s.mode !== "fly" && (this.mode === "walk" || this.mode === "play" || this.mode === "intro" || this.mode === "race");
+      const here = p.s.p === planet.spec.id && p.s.mode !== "fly" && (this.mode === "walk" || this.mode === "play" || this.mode === "intro");
       p.model.group.visible = p.label.sprite.visible = p.shadow.visible = here;
       p.hat.sprite.visible = here && p.hat.sprite.userData.on === true;
       if (p.aura) p.aura.group.visible = here;
@@ -452,7 +446,7 @@ export class Engine {
   }
 
   private celebrate(symbol = "★") {
-    this.cheer.set([{ text: symbol, color: "#ccff00", size: 64 }]);
+    this.cheer.set([{ text: symbol, color: "#f2c46b", size: 64 }]);
     this.cheerT = 1.6;
     if (this.mode === "walk" && this.hop === 0) { this.vy = 8; this.hop = 0.01; }
   }
@@ -518,7 +512,6 @@ export class Engine {
   private questTarget(): THREE.Vector3 | null {
     const q = this.questNow(); if (!q) return null;
     const x = this.extras;
-    if (q.quest.target === "race") return x ? x.raceStart : null;
     if (q.quest.target === "dig" || q.quest.target === "bug") {
       if (!x) return null;
       const me = this.n.clone().multiplyScalar(this.current.R);
@@ -615,8 +608,7 @@ export class Engine {
     else if (this.mode === "land") this.updateLand(dt);
     else if (this.mode === "play") this.updatePlay(dt);
     else if (this.mode === "intro") this.updateIntro(dt);
-    else if (this.mode === "race") this.updateRace(dt);
-    if (this.mode === "walk" || this.mode === "race") this.extras?.update(dt, this.time);
+    if (this.mode === "walk") this.extras?.update(dt, this.time);
     this.prebuild();
     if (this.time >= this.plotsAt) { this.plotsAt = this.time + 0.5; this.refreshCrops(); }
     if (this.mode === "walk" || this.mode === "play") this.updateHosts(dt);
@@ -688,8 +680,7 @@ export class Engine {
     if (x) {
       const local = tmpC.copy(this.n).multiplyScalar(planet.surface(this.n));
       const dig = x.nearDig(local), bug = x.nearBug(local.clone().addScaledVector(this.n, 1));
-      if (local.distanceTo(x.raceStart) < 3.2) this.promptExtra = { kind: "race", i: 0 };
-      else if (dig >= 0) this.promptExtra = { kind: "dig", i: dig };
+      if (dig >= 0) this.promptExtra = { kind: "dig", i: dig };
       else if (bug >= 0) this.promptExtra = { kind: "bug", i: bug };
     }
     if (this.promptExtra && (this.input.take("e") || this.input.take("enter"))) this.useExtra();
@@ -1142,13 +1133,12 @@ export class Engine {
   // ---------------------------------------------------------------- drawing
   private playerWorld(out: THREE.Vector3) {
     const planet = this.current;
-    return out.copy(this.n).multiplyScalar(planet.surface(this.n) + this.hop + (this.mode === "race" ? this.race.hover : 0)).add(planet.group.position);
+    return out.copy(this.n).multiplyScalar(planet.surface(this.n) + this.hop).add(planet.group.position);
   }
 
   private draw(dt: number) {
     const inRocket = this.mode === "launch" || this.mode === "fly" || this.mode === "land";
     const cinematic = this.mode === "board" || this.mode === "land" || this.mode === "intro";
-    this.board3d.visible = this.mode === "race";
     if (this.extras) this.extras.group.visible = this.mode !== "play";
     const cockpitView = inRocket && this.view === "cockpit" && !cinematic;
     const playing = this.mode === "play" && this.activity;
@@ -1372,7 +1362,7 @@ export class Engine {
   private applyLook(kind: "rocket" | "hat" | "aura") {
     if (kind === "hat") { this.wearHat(); this.sendState(); return; }
     if (kind === "aura") { this.wearAura(); this.sendState(); return; }
-    if (this.mode === "walk" || this.mode === "play" || this.mode === "race" || this.mode === "intro") this.repaintRocket();
+    if (this.mode === "walk" || this.mode === "play" || this.mode === "intro") this.repaintRocket();
     else this.pendingPaint = true;
   }
   private pendingPaint = false;
@@ -1418,10 +1408,9 @@ export class Engine {
   emitHud() {
     let prompt = this.mode === "walk" && this.promptStation ? promptFor(this.promptStation, this.current) : null;
     if (this.mode === "walk" && this.promptExtra) {
-      const e = this.promptExtra, best = this.progress.raceBest?.[String(this.current.spec.id)];
+      const e = this.promptExtra;
       prompt = e.kind === "dig" ? { title: "Dig ⛏️", detail: "Something sparkles here" }
-        : e.kind === "bug" ? { title: `Catch the ${this.extras!.bugs[e.i].kind.name} 🦋`, detail: this.extras!.bugs[e.i].kind.rarity >= 3 ? "A rare one!" : "Quick, before it flutters off" }
-        : { title: "Hoverboard ring race 🛹", detail: best ? `Your best: ${best.toFixed(1)}s` : "10 rings around the planet" };
+        : { title: `Catch the ${this.extras!.bugs[e.i].kind.name} 🦋`, detail: this.extras!.bugs[e.i].kind.rarity >= 3 ? "A rare one!" : "Quick, before it flutters off" };
     }
     if (prompt && this.promptStation?.kind === "farm") {
       const crop = this.crop(this.current);
@@ -1444,7 +1433,6 @@ export class Engine {
       quest: (() => { const q = this.questNow(); return q ? { n: q.n, total: q.total, text: q.quest.text } : null; })(),
       discovering: this.discovering,
       online: this.onlineHud(),
-      race: this.mode === "race" ? { countdown: this.race.t < 0 ? Math.ceil(-this.race.t) : 0, time: Math.max(0, Math.round(this.race.t * 10) / 10), ring: this.race.ring, total: this.extras?.rings.length ?? 10, best: this.progress.raceBest?.[String(this.current.spec.id)] ?? null } : null,
       activity: this.mode === "play" && this.activity ? this.activity.hud() : null,
       book: this.book(),
       wallet: this.walletHud(),
@@ -1467,7 +1455,6 @@ export class Engine {
   useNearest() { if (this.mode === "walk" && this.promptExtra) this.useExtra(); else if (this.mode === "walk" && this.promptStation) this.use(this.promptStation); else if (this.mode === "fly") this.land(); }
   private useExtra() {
     const e = this.promptExtra, x = this.extras; if (!e || !x) return;
-    if (e.kind === "race") { this.startRace(); return; }
     const p = this.progress;
     let find: Find;
     if (e.kind === "dig") {
@@ -1490,70 +1477,6 @@ export class Engine {
     this.promptExtra = null;
   }
 
-  // ---------------------------------------------------------------- hoverboard ring race
-  private startRace() {
-    const x = this.extras; if (!x) return;
-    this.mode = "race";
-    const r = this.race;
-    r.t = -3; r.ring = 0; r.speed = 0; r.hover = 0;
-    // Face the first ring.
-    const to = x.rings[0].pos.clone().sub(this.n.clone().multiplyScalar(this.current.R));
-    const local = to.applyQuaternion(this.Q.clone().invert());
-    r.heading = Math.atan2(local.x, local.z);
-    x.showRings(0);
-    this.board3d.visible = true;
-    this.audio?.blip(440);
-  }
-  private endRace(finished: boolean) {
-    const x = this.extras, r = this.race;
-    this.mode = "walk"; this.board3d.visible = false; r.hover = 0;
-    x?.showRings(-1);
-    this.cam.pitch = CAMERA.startPitch; this.cam.targetDistance = CAMERA.startDistance;
-    if (!finished) { this.host.onToast("Race cancelled.", "info"); return; }
-    const p = this.progress, key = String(this.current.spec.id), best = p.raceBest?.[key];
-    const record = best === undefined || r.t < best;
-    p.raceBest = { ...(p.raceBest ?? {}), [key]: record ? Math.round(r.t * 10) / 10 : best! };
-    this.task("race");
-    const stars = r.t < 30 ? 20 : r.t < 45 ? 12 : 6;
-    p.stars += stars; this.host.onProgress(p);
-    this.host.onToast(`🛹 ${r.t.toFixed(1)}s${record ? " · new best!" : ` · best ${best!.toFixed(1)}s`} · +${stars} ★`, "good");
-    this.audio?.fanfare(); this.celebrate("🏁");
-  }
-  private updateRace(dt: number) {
-    const r = this.race, x = this.extras!, planet = this.current, R = planet.R;
-    r.t += dt;
-    if (this.input.take("escape") || this.input.take("q")) { this.endRace(false); return; }
-    const [mx] = this.input.move();
-    r.heading -= mx * 2.3 * dt;
-    // The camera sits behind the board.
-    this.cam.yaw += Math.atan2(Math.sin(r.heading + Math.PI - this.cam.yaw), Math.cos(r.heading + Math.PI - this.cam.yaw)) * Math.min(1, dt * 6);
-    this.cam.pitch += (0.2 - this.cam.pitch) * Math.min(1, dt * 4); this.cam.targetDistance = 9;
-    this.heading = r.heading; this.moving = r.t > 0;
-    if (r.t > 0) {
-      const boost = this.input.held("shift");
-      const turbo = has(this.progress, "gear:board") ? 1.15 : 1;
-      r.speed += ((boost ? 23 : 18) * turbo - r.speed) * Math.min(1, dt * 1.5);
-      const dir = tmpA.set(Math.sin(r.heading), 0, Math.cos(r.heading)).applyQuaternion(this.Q);
-      this.moveDir.copy(dir);
-      const next = tmpB.copy(this.n).multiplyScalar(R).addScaledVector(dir, r.speed * dt).normalize();
-      tmpQ.setFromUnitVectors(this.n, next); this.Q.premultiply(tmpQ); this.n.copy(next);
-      this.walkClock += dt * 8;
-    }
-    if (this.input.take(" ") && this.hop === 0) { this.vy = 10; this.hop = 0.01; }
-    if (this.hop > 0 || this.vy > 0) { this.hop += this.vy * dt; this.vy -= 22 * dt; if (this.hop <= 0) { this.hop = 0; this.vy = 0; } }
-    // Hover over land and water.
-    const ground = planet.surface(this.n), lift = Math.max(planet.water + 0.25 - ground, 0) + 0.8;
-    r.hover += (lift - r.hover) * Math.min(1, dt * 8);
-    // Rings in order.
-    const me = tmpC.copy(this.n).multiplyScalar(ground + r.hover + this.hop + 1);
-    const ring = x.rings[r.ring];
-    if (ring && me.distanceTo(ring.pos) < 2.1) {
-      r.ring++; this.audio?.blip(700 + r.ring * 60); this.cam.addShake(0.1);
-      if (r.ring >= x.rings.length) { this.endRace(true); return; }
-      x.showRings(r.ring);
-    }
-    if (r.t > 120) this.endRace(false);
-  }
   jump() { this.input.press(" "); }
   setBlocked(blocked: boolean) { this.blocked = blocked; this.input.setEnabled(!blocked && !this.paused); }
   setPaused(paused: boolean) { this.paused = paused; this.input.setEnabled(!paused && !this.blocked); }

@@ -1,7 +1,7 @@
 /**
  * Friend Planets economy. Two currencies:
  *
- * - ★ Stars: earned by playing (catches, harvests, quests, sports, races, landings)
+ * - ★ Stars: earned by playing (catches, harvests, treasure, quests, sports, landings)
  *   and by selling what you collect at the market. They cost nobody anything, so
  *   they buy the everyday things: bait, fertilizer, upgrades, starter cosmetics.
  * - RF ($RAREFRIENDS): the game never gives any out. It only comes from the
@@ -70,7 +70,6 @@ export const SHOP: ShopItem[] = [
   { id: "item:fert", kind: "item", name: "Fertilizer", icon: "🧪", price: 25, currency: "star", text: "Instantly ripens every crop on the planet you're on" },
   // Upgrades you keep.
   { id: "gear:rod", kind: "gear", name: "Pro rod", icon: "🎣", price: 400, currency: "star", text: "Line tension builds 30% slower in fish fights" },
-  { id: "gear:board", kind: "gear", name: "Turbo board", icon: "🛹", price: 350, currency: "star", text: "Hoverboard rides 15% faster in ring races" },
   { id: "gear:seeds", kind: "gear", name: "Super seeds", icon: "🌱", price: 300, currency: "star", text: "Every harvest gives 2 crops" },
 ];
 export const itemById = (id: string) => SHOP.find(i => i.id === id);

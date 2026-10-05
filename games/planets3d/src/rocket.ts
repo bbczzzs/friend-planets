@@ -44,7 +44,7 @@ export class RocketModel {
     }
     g.add(new THREE.CylinderGeometry(0.5, 0.5, 0.24, 20), 0, 5.6, 1.11, "#9fe6ff", { rx: Math.PI / 2 - 0.12 })
       .add(new THREE.SphereGeometry(0.2, 10, 8), 0, 8.75, 0, "#ff6b61")
-      .box(0.5, 0.08, 0.08, 0, 2.02, 1.33, "#ccff00");
+      .box(0.5, 0.08, 0.08, 0, 2.02, 1.33, "#8edb7c");
     inked(this.body, b.mesh(litMaterial));
     this.body.add(g.mesh(glowMaterial));
     // Hatch: hinged on its left edge, swings open.
@@ -146,9 +146,9 @@ export class Cockpit {
     const gauge = new THREE.Mesh(new THREE.CircleGeometry(0.24, 20), new THREE.MeshBasicMaterial({ color: "#10141c" }));
     gauge.position.set(1.45, -0.27, -1.08); gauge.rotation.x = tilt; this.scene.add(gauge);
     this.speedNeedle = new THREE.Group();
-    const needle = new THREE.Mesh(new THREE.PlaneGeometry(0.03, 0.2), new THREE.MeshBasicMaterial({ color: "#ccff00" })); needle.position.y = 0.09;
+    const needle = new THREE.Mesh(new THREE.PlaneGeometry(0.03, 0.2), new THREE.MeshBasicMaterial({ color: "#8edb7c" })); needle.position.y = 0.09;
     this.speedNeedle.add(needle); this.speedNeedle.position.set(1.45, -0.265, -1.075); this.speedNeedle.rotation.x = tilt; this.scene.add(this.speedNeedle);
-    const colors = ["#ccff00", "#ed927e", "#7db4db", "#f2ce68", "#b3a0d8"];
+    const colors = ["#8edb7c", "#ed927e", "#7db4db", "#f2ce68", "#b3a0d8"];
     for (let i = 0; i < 12; i++) {
       const m = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.05, 0.11), new THREE.MeshBasicMaterial({ color: colors[i % colors.length] }));
       m.position.set(i < 6 ? -2.15 + i * 0.17 : 1.95 + ((i - 6) % 3) * 0.17, i < 6 ? -0.36 : -0.36 + Math.floor((i - 6) / 3) * 0.1, i < 6 ? -1.05 : -1.05 - Math.floor((i - 6) / 3) * 0.12);
@@ -173,8 +173,8 @@ export class Cockpit {
     this.throttle.rotation.x = -0.6 + throttle * 1.1;
     this.stick.rotation.set(-steerY * 0.35, 0, -steerX * 0.35);
     this.speedNeedle.rotation.z = 2.2 - speed * 4.4;
-    this.blinkers.forEach((m, i) => { (m.material as THREE.MeshBasicMaterial).color.setStyle(Math.sin(t * (2 + i * 0.7) + i) > 0.2 ? ["#ccff00", "#ed927e", "#7db4db", "#f2ce68", "#b3a0d8"][i % 5] : "#2a2e3a"); });
-    (this.landLight.material as THREE.MeshBasicMaterial).color.setStyle(canLand ? (Math.sin(t * 8) > 0 ? "#ccff00" : "#6f8a00") : "#333333");
+    this.blinkers.forEach((m, i) => { (m.material as THREE.MeshBasicMaterial).color.setStyle(Math.sin(t * (2 + i * 0.7) + i) > 0.2 ? ["#8edb7c", "#ed927e", "#7db4db", "#f2ce68", "#b3a0d8"][i % 5] : "#2a2e3a"); });
+    (this.landLight.material as THREE.MeshBasicMaterial).color.setStyle(canLand ? (Math.sin(t * 8) > 0 ? "#8edb7c" : "#3f6b38") : "#333333");
     const g = this.radarCanvas.getContext("2d")!;
     g.fillStyle = "#08130c"; g.fillRect(0, 0, 160, 160);
     g.strokeStyle = "#1f5a33"; g.lineWidth = 2;
@@ -184,7 +184,7 @@ export class Cockpit {
     g.strokeStyle = "rgba(204,255,0,0.55)"; g.beginPath(); g.moveTo(80, 80); g.lineTo(80 + Math.cos(sweep) * 78, 80 + Math.sin(sweep) * 78); g.stroke();
     for (const d of dots) {
       g.fillStyle = d.color; g.fillRect(80 + d.x * 75 - 5, 80 + d.y * 75 - 5, 10, 10);
-      if (d.target) { g.strokeStyle = "#ccff00"; g.strokeRect(80 + d.x * 75 - 9, 80 + d.y * 75 - 9, 18, 18); }
+      if (d.target) { g.strokeStyle = "#8edb7c"; g.strokeRect(80 + d.x * 75 - 9, 80 + d.y * 75 - 9, 18, 18); }
     }
     g.fillStyle = "#ffffff"; g.fillRect(77, 77, 6, 6);
     this.radar.needsUpdate = true;
