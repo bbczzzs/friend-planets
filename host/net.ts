@@ -7,7 +7,7 @@
  */
 import { joinRoom, selfId } from "trystero";
 
-type State = { f: number; fam: number; p: number; n: [number, number, number]; d: [number, number, number]; m: boolean; mode: string; act: string; h?: string };
+type State = { f: number; fam: number; p: number; n: [number, number, number]; d: [number, number, number]; m: boolean; mode: string; act: string; h?: string; a?: string };
 type Room = ReturnType<typeof joinRoom>;
 
 const APP = "friend-planets-rarefriends-vibeathon-2026";
@@ -37,8 +37,9 @@ function cleanState(s: unknown): State | null {
   const mode = typeof o.mode === "string" && MODES.has(o.mode) ? o.mode : null;
   const act = typeof o.act === "string" && /^[a-z]{0,8}$/.test(o.act) ? o.act : "";
   const h = typeof o.h === "string" && /^hat:[a-z]{1,10}$/.test(o.h) ? o.h : "";
+  const a = typeof o.a === "string" && /^aura:[a-z]{1,10}$/.test(o.a) ? o.a : "";
   if (f === null || fam === null || p === null || !n || !d || !mode) return null;
-  return { f: Math.floor(f), fam: Math.floor(fam), p: Math.floor(p), n, d, m: o.m === true, mode, act, h };
+  return { f: Math.floor(f), fam: Math.floor(fam), p: Math.floor(p), n, d, m: o.m === true, mode, act, h, a };
 }
 function cleanText(t: unknown) {
   if (typeof t !== "string") return null;
@@ -49,7 +50,7 @@ function allow(peerId: string, kind: "say" | "state") {
   const now = performance.now(), p = peers.get(peerId) ?? { last: 0, says: 0 };
   peers.set(peerId, p);
   if (kind === "state") { if (now - p.last < 50) return false; p.last = now; return true; }
-  if (now - p.says < 1500) return false;
+  if (now - p.says < 600) return false;
   p.says = now; return true;
 }
 

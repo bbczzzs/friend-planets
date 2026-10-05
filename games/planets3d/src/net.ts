@@ -4,7 +4,7 @@
  * with postMessage. If no host answers (e.g. an older host), the game simply
  * stays single-player.
  */
-export type PeerState = { f: number; fam: number; p: number; n: [number, number, number]; d: [number, number, number]; m: boolean; mode: string; act: string; h?: string };
+export type PeerState = { f: number; fam: number; p: number; n: [number, number, number]; d: [number, number, number]; m: boolean; mode: string; act: string; h?: string; a?: string };
 export type NetStatus = "off" | "connecting" | "online";
 export const EMOTE_ICONS: Record<string, string> = { wave: "👋", heart: "❤️", party: "🎉", laugh: "😂" };
 

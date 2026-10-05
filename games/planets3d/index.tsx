@@ -7,7 +7,7 @@ import type { ActivityHud } from "./src/activities";
 import { makeGalaxy } from "./src/galaxy";
 import { FAMILY_NAMES, RARITY, RARITY_COLOR, SPORTS, perkOf } from "./src/data";
 import { loadProgress, saveProgress } from "./src/progress";
-import { SHOP, type ItemKind } from "./src/economy";
+import { OWNER_CUT, SHOP, featured, itemById, type ItemKind, type ShopItem } from "./src/economy";
 import { loadPilot, type PilotSprite } from "./pilot";
 import { stillClips, fallbackSprite, spriteCanvas } from "./sprites";
 import { ValleyAudio } from "./audio";
@@ -22,8 +22,8 @@ const SLIDES = [
   { icon: "🌐", title: "Meet other players", text: "Everyone online shares the galaxy: see their Friends, chat and wave. Your family perk changes how you play, and Friends you visit come to your campfire." },
 ];
 type Phase = "loading" | "error" | "title" | "playing";
-type ShopTab = "sell" | ItemKind;
-const SHOP_TABS: { id: ShopTab; label: string }[] = [{ id: "sell", label: "Sell" }, { id: "hat", label: "Hats" }, { id: "rocket", label: "Rockets" }, { id: "item", label: "Items" }, { id: "gear", label: "Upgrades" }];
+type ShopTab = "featured" | "sell" | ItemKind;
+const SHOP_TABS: { id: ShopTab; label: string }[] = [{ id: "featured", label: "Featured" }, { id: "hat", label: "Hats" }, { id: "aura", label: "Auras" }, { id: "rocket", label: "Rockets" }, { id: "gear", label: "Upgrades" }, { id: "item", label: "Items" }, { id: "sell", label: "Sell" }];
 
 function Portrait({ pilot, size = 96 }: { pilot: PilotSprite; size?: number }) {
   const src = spriteCanvas(pilot.clips.idle.down[0]).toDataURL();
@@ -47,6 +47,11 @@ function Icon({ name }: { name: keyof typeof ICONS }) {
 /** The RF coin: a small gold disc. */
 function Coin() {
   return <svg className="fp-coin" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.5" /><circle cx="10" cy="10" r="5.2" /></svg>;
+}
+
+/** A price chip: ★ for stars, the gold coin for RF. */
+function Price({ item }: { item: ShopItem }) {
+  return item.currency === "rf" ? <><Coin /> {item.price} RF</> : <>★ {item.price}</>;
 }
 
 function Meter({ m }: { m: NonNullable<ActivityHud["meter"]> }) {
@@ -76,7 +81,8 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
   const [chat, setChat] = useState<string | null>(null);
   const [visitId, setVisitId] = useState("");
   const [slide, setSlide] = useState(0);
-  const [shopTab, setShopTab] = useState<ShopTab>("sell");
+  const [shopTab, setShopTab] = useState<ShopTab>("featured");
+  const [checkout, setCheckout] = useState<string | null>(null), [paying, setPaying] = useState(false);
   const [emotes, setEmotes] = useState(false);
 
   const toast = useCallback((text: string, kind: ToastKind = "info") => {
@@ -138,6 +144,15 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
     engine.current?.intro();
     window.setTimeout(() => toast("WASD / stick to walk · drag to look · E to use", "info"), 3200);
   }
+  // The SDK runs the game in a sandbox that blocks form submits, so Enter and buttons are handled directly.
+  function sendChat() {
+    if (chat?.trim()) engine.current?.say(chat);
+    setChat(null);
+  }
+  function visitFriend() {
+    const n = Number(visitId);
+    if (Number.isInteger(n) && n > 0) { engine.current?.discover(n); setVisitId(""); }
+  }
   function toggleSound() {
     const kit = audio.current; if (!kit) return;
     kit.unlock(); kit.setMuted(!muted); setMuted(!muted);
@@ -166,11 +181,11 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
             </div>}
           </div>
           <div className="fp-hud-r">
-            <button type="button" className="fp-pill fp-rf" onClick={() => setPanel("shop")} title="Simulated RF: earn by playing, spend at the market"><Coin /><b>{hud.wallet.rf}</b><small>RF · sim</small></button>
+            <button type="button" className="fp-pill fp-rf" onClick={() => { setShopTab("featured"); setPanel("shop"); }} title="Stars: earned by playing. Tap for the shop."><span className="fp-star">★</span><b>{hud.stars}</b><small>Shop</small></button>
             {act ? <button type="button" className="fp-pill fp-leave" onClick={() => engine.current?.endActivity()}><kbd>Esc</kbd> Leave</button>
               : <div className="fp-bar-r" role="toolbar" aria-label="Menu">
                 <button type="button" className="fp-icon" onClick={() => setPanel("book")} aria-label="Collection" title="Collection"><Icon name="book" />{fishCaught > 0 && <small>{fishCaught}</small>}</button>
-                {mode === "walk" && <button type="button" className="fp-icon" onClick={() => setPanel("shop")} aria-label="Market and shop" title="Market"><Icon name="bag" />{hud.wallet.bag.length > 0 && <small className="fp-badge">{hud.wallet.bag.reduce((n, g) => n + g.n, 0)}</small>}</button>}
+                {mode === "walk" && <button type="button" className="fp-icon" onClick={() => { setShopTab(hud.wallet.bag.length ? "sell" : "featured"); setPanel("shop"); }} aria-label="Market and shop" title="Market"><Icon name="bag" />{hud.wallet.bag.length > 0 && <small className="fp-badge">{hud.wallet.bag.reduce((n, g) => n + g.n, 0)}</small>}</button>}
                 <button type="button" className={`fp-icon${hud.online.status === "online" ? " on" : ""}`} onClick={() => setPanel("online")} aria-label="Who's online" title="Online"><Icon name="globe" />{hud.online.status === "online" && <small>{hud.online.players.length + 1}</small>}</button>
                 <button type="button" className="fp-icon" onClick={toggleSound} aria-label={muted ? "Turn sound on" : "Turn sound off"} title="Sound"><Icon name={muted ? "soundOff" : "soundOn"} /></button>
                 <button type="button" className="fp-icon" onClick={() => setPanel("help")} aria-label="How to play" title="How to play"><Icon name="help" /></button>
@@ -188,9 +203,8 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
         </div>}
         {mode === "walk" && <div className="fp-chatbar">
           {chat === null ? <button type="button" className="fp-icon fp-glass" onClick={() => setChat("")} aria-label="Chat (T)" title="Chat (T)"><Icon name="chat" /></button>
-            : <form onSubmit={e => { e.preventDefault(); if (chat.trim()) engine.current?.say(chat); setChat(null); }}>
-                <input autoFocus maxLength={80} placeholder="Say something…" value={chat} onChange={e => setChat(e.target.value)} onKeyDown={e => { if (e.key === "Escape") setChat(null); }} />
-              </form>}
+            : <input autoFocus maxLength={80} placeholder="Say something… (Enter to send)" enterKeyHint="send" value={chat} onChange={e => setChat(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") sendChat(); else if (e.key === "Escape") setChat(null); }} onBlur={() => { if (!chat.trim()) setChat(null); }} />}
           <button type="button" className={`fp-icon fp-glass${emotes ? " on" : ""}`} onClick={() => setEmotes(!emotes)} aria-label="Emotes" aria-expanded={emotes}><Icon name="smile" /></button>
           {emotes && <div className="fp-emotes">{(["wave", "heart", "party", "laugh"] as const).map(e => <button key={e} type="button" className="fp-emote" onClick={() => { engine.current?.emote(e); setEmotes(false); }} aria-label={e}>{({ wave: "👋", heart: "❤️", party: "🎉", laugh: "😂" })[e]}</button>)}</div>}
         </div>}
@@ -214,11 +228,11 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
               <span className="fp-chip-txt"><b>{p.name}</b><small>{p.home ? "home" : `#${p.host}`}{p.visited && !p.home ? " ✓" : ""}</small></span>
             </button>)}
           </div>
-          <form className="fp-discover" onSubmit={e => { e.preventDefault(); const n = Number(visitId); if (Number.isInteger(n) && n > 0) { engine.current?.discover(n); setVisitId(""); } }}>
+          <div className="fp-discover">
             <button type="button" className="fp-disc-btn" disabled={hud.discovering} onClick={() => engine.current?.discover()}>🔭 {hud.discovering ? "Scanning…" : "Discover a Friend"}</button>
-            <label><span className="fp-sr">Visit a Friend by token number</span><input inputMode="numeric" placeholder="Friend #" value={visitId} onChange={e => setVisitId(e.target.value.replace(/\D/g, "").slice(0, 7))} /></label>
-            <button type="submit" disabled={hud.discovering || !visitId}>Visit</button>
-          </form>
+            <label><span className="fp-sr">Visit a Friend by token number</span><input inputMode="numeric" placeholder="Friend #" enterKeyHint="go" value={visitId} onChange={e => setVisitId(e.target.value.replace(/\D/g, "").slice(0, 7))} onKeyDown={e => { if (e.key === "Enter") visitFriend(); }} /></label>
+            <button type="button" className="fp-visit" disabled={hud.discovering || !visitId} onClick={visitFriend}>Visit</button>
+          </div>
           <div className="fp-flybtns">
             <button type="button" className="fp-view" onClick={() => engine.current?.toggleView()}><kbd>C</kbd> {hud.fly.view === "cockpit" ? "Outside view" : "Cockpit view"}</button>
             {hud.fly.near !== null && <button type="button" className="fp-land" onClick={() => engine.current?.land()}><kbd>E</kbd> Land on {hud.planets[hud.fly.near].name}</button>}
@@ -288,7 +302,7 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
             <li><b>Walk</b> WASD or the stick · <b>Look</b> drag · <b>Jump</b> Space · <b>Use</b> E</li>
             <li><b>Fly</b> WASD steers, Shift boosts, C swaps the view. Tap a planet for autopilot, E to land. Discover visits any Friend by number.</li>
             <li><b>Play</b> Space / E / tap, A / D to aim or dodge, S blocks, W star punch. Esc leaves.</li>
-            <li><b>Market</b> sell what you catch, grow and dig, then buy hats, rocket paint and upgrades. Quests, sports, races and landings pay RF too (simulated for now).</li>
+            <li><b>Shop</b> sell what you catch, grow and dig for ★, spend ★ on bait and upgrades, and pick up premium hats, auras and rocket paint with RF.</li>
           </ul>
           <button type="button" className="fp-cta" onClick={() => setPanel(null)}>Back to playing</button>
         </div>
@@ -309,33 +323,62 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
           <button type="button" className="fp-cta" onClick={() => setPanel(null)}>Close</button>
         </div>
       </div>}
-      {panel === "shop" && hud && <div className="fp-screen" onPointerDown={e => { if (e.target === e.currentTarget) setPanel(null); }}>
-        <div className="fp-card fp-shop" role="dialog" aria-modal="true" aria-label="Market and shop">
-          <div className="fp-shop-head"><h2>Market</h2><div className="fp-shop-bal"><Coin /><b>{hud.wallet.rf}</b> RF</div><button type="button" className="fp-x" onClick={() => setPanel(null)} aria-label="Close">×</button></div>
-          <p className="fp-sim">Simulated RF · nothing touches your wallet · fixed prices, no mystery boxes</p>
-          <div className="fp-tabs" role="tablist">{SHOP_TABS.map(t => <button key={t.id} type="button" role="tab" aria-selected={shopTab === t.id} className={shopTab === t.id ? "on" : ""} onClick={() => setShopTab(t.id)}>{t.label}</button>)}</div>
-          {shopTab === "sell" ? <>
+      {panel === "shop" && hud && <div className="fp-screen" onPointerDown={e => { if (e.target === e.currentTarget && !checkout) setPanel(null); }}>
+        <div className="fp-card fp-shop" role="dialog" aria-modal="true" aria-label="Shop">
+          <div className="fp-shop-head"><h2>Shop</h2><div className="fp-shop-bal fp-starbal"><span className="fp-star">★</span><b>{hud.stars}</b></div><button type="button" className="fp-x" onClick={() => setPanel(null)} aria-label="Close">×</button></div>
+          {hud.wallet.owner !== null && <p className="fp-support">💛 RF purchases here send {Math.round(OWNER_CUT * 100)}% to <b>Friend #{hud.wallet.owner}</b>'s owner</p>}
+          <div className="fp-tabs" role="tablist">{SHOP_TABS.map(t => <button key={t.id} type="button" role="tab" aria-selected={shopTab === t.id} className={shopTab === t.id ? "on" : ""} onClick={() => setShopTab(t.id)}>{t.label}{t.id === "sell" && hud.wallet.bag.length > 0 && <i className="fp-tabdot" />}</button>)}</div>
+          {shopTab === "featured" ? (() => { const week = featured(); return <div className="fp-featured">
+            <p className="fp-feat-head"><span>This week</span><small>New picks in {week.endsInDays} day{week.endsInDays > 1 ? "s" : ""}</small></p>
+            <div className="fp-feat-grid">{week.items.map(i => { const owned = hud.wallet.owned.includes(i.id); return <div key={i.id} className={`fp-feat${owned ? " owned" : ""}`}>
+              <span className="fp-feat-ico">{i.icon}</span>
+              <b>{i.name}</b><small>{i.text}</small>
+              {owned ? <button type="button" className="fp-owned" onClick={() => engine.current?.equip(i.id)}>{Object.values(hud.wallet.equip).includes(i.id) ? "Wearing" : "Wear"}</button>
+                : <button type="button" className="fp-buy rf" onClick={() => setCheckout(i.id)}><Price item={i} /></button>}
+            </div>; })}</div>
+            <p className="fp-sim">Premium looks are seen by everyone on your planet. Cosmetic only: nobody pays to win.</p>
+          </div>; })()
+          : shopTab === "sell" ? <>
             {hud.wallet.bag.length ? <>
               <ul className="fp-goods">{hud.wallet.bag.map(g => <li key={g.key}>
-                <span className="fp-goods-ico">{g.icon}</span><span className="fp-goods-name"><b>{g.name}</b><small>×{g.n} · {g.price} RF each</small></span>
-                <button type="button" onClick={() => engine.current?.sell(g.key)}>Sell {g.n * g.price}</button>
+                <span className="fp-goods-ico">{g.icon}</span><span className="fp-goods-name"><b>{g.name}</b><small>×{g.n} · ★ {g.price} each</small></span>
+                <button type="button" className="fp-buy" onClick={() => engine.current?.sell(g.key)}>Sell ★ {g.n * g.price}</button>
               </li>)}</ul>
-              <button type="button" className="fp-cta" onClick={() => engine.current?.sell("all")}>Sell everything · {hud.wallet.bag.reduce((n, g) => n + g.n * g.price, 0)} RF</button>
-            </> : <p className="fp-empty">Your bag is empty. Fish, farm, dig and catch butterflies, then sell them here. Quests, sports, races and good landings pay RF too.</p>}
+              <button type="button" className="fp-cta" onClick={() => engine.current?.sell("all")}>Sell everything · ★ {hud.wallet.bag.reduce((n, g) => n + g.n * g.price, 0)}</button>
+            </> : <p className="fp-empty">Your bag is empty. Fish, farm, dig for treasure and catch butterflies, then sell them here for ★. Quests, sports, races and good landings pay ★ too.</p>}
           </> : <ul className="fp-items">{SHOP.filter(i => i.kind === shopTab).map(i => {
-            const owned = hud.wallet.owned.includes(i.id), worn = hud.wallet.equip.rocket === i.id || hud.wallet.equip.hat === i.id, count = hud.wallet.items[i.id] ?? 0;
-            return <li key={i.id} className={worn ? "worn" : ""}>
+            const owned = hud.wallet.owned.includes(i.id), worn = Object.values(hud.wallet.equip).includes(i.id), count = hud.wallet.items[i.id] ?? 0;
+            const short = i.currency === "star" && hud.stars < i.price;
+            return <li key={i.id} className={`${worn ? "worn" : ""}${i.currency === "rf" ? " premium" : ""}`}>
               <span className="fp-item-ico">{i.icon}</span>
-              <span className="fp-item-txt"><b>{i.name}{count ? ` ×${count}` : ""}</b><small>{i.text}</small></span>
+              <span className="fp-item-txt"><b>{i.name}{count ? ` ×${count}` : ""}{i.currency === "rf" && <em className="fp-tag">Premium</em>}</b><small>{i.text}</small></span>
               {i.kind === "item" ? <span className="fp-item-btns">
-                  {i.id === "item:fert" && count > 0 && <button type="button" disabled={!hud.wallet.canFertilize} onClick={() => engine.current?.fertilize()} title={hud.wallet.canFertilize ? "Ripen your crops now" : "Stand on a planet with growing crops"}>Use</button>}
-                  <button type="button" disabled={hud.wallet.rf < i.price} onClick={() => engine.current?.buy(i.id)}>{i.price} RF</button>
+                  {i.id === "item:fert" && count > 0 && <button type="button" className="fp-owned" disabled={!hud.wallet.canFertilize} onClick={() => engine.current?.fertilize()} title={hud.wallet.canFertilize ? "Ripen your crops now" : "Stand on a planet with growing crops"}>Use</button>}
+                  <button type="button" className="fp-buy" disabled={short} onClick={() => engine.current?.buy(i.id)}><Price item={i} /></button>
                 </span>
                 : worn ? <span className="fp-item-tag">{i.kind === "gear" ? "Owned" : "Wearing"}</span>
-                : owned ? (i.kind === "gear" ? <span className="fp-item-tag">Owned</span> : <button type="button" onClick={() => engine.current?.equip(i.id)}>Use</button>)
-                : <button type="button" disabled={hud.wallet.rf < i.price} onClick={() => engine.current?.buy(i.id)}>{i.price} RF</button>}
+                : owned ? (i.kind === "gear" ? <span className="fp-item-tag">Owned</span> : <button type="button" className="fp-owned" onClick={() => engine.current?.equip(i.id)}>Wear</button>)
+                : <button type="button" className={`fp-buy${i.currency === "rf" ? " rf" : ""}`} disabled={short} onClick={() => i.currency === "rf" ? setCheckout(i.id) : engine.current?.buy(i.id)}><Price item={i} /></button>}
             </li>;
           })}</ul>}
+          {checkout && (() => { const item = itemById(checkout)!, owner = hud.wallet.owner, cut = Math.round(item.price * OWNER_CUT * 100) / 100; return <div className="fp-checkout" role="dialog" aria-modal="true" aria-label="Confirm purchase">
+            <div className="fp-co-card">
+              <span className="fp-co-ico">{item.icon}</span>
+              <h3>{item.name}</h3>
+              <p>{item.text}</p>
+              <div className="fp-co-price"><Coin /><b>{item.price}</b> RF</div>
+              <ul className="fp-co-lines">
+                <li><span>Paid with</span><b>$RAREFRIENDS</b></li>
+                {owner !== null && <li><span>Supports Friend #{owner}'s owner</span><b>{cut} RF</b></li>}
+                <li><span>Yours to keep</span><b>Forever</b></li>
+              </ul>
+              {hud.wallet.simulated && <p className="fp-co-sim">Preview: payments are simulated, no RF leaves your wallet.</p>}
+              <div className="fp-co-btns">
+                <button type="button" className="fp-cta fp-ghost" disabled={paying} onClick={() => setCheckout(null)}>Cancel</button>
+                <button type="button" className="fp-cta fp-gold" disabled={paying} onClick={async () => { setPaying(true); try { await engine.current?.checkout(item.id); } finally { setPaying(false); setCheckout(null); } }}>{paying ? "Confirming…" : `Pay ${item.price} RF`}</button>
+              </div>
+            </div>
+          </div>; })()}
         </div>
       </div>}
       {panel === "book" && hud && <div className="fp-screen" onPointerDown={e => { if (e.target === e.currentTarget) setPanel(null); }}>

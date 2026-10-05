@@ -10,7 +10,9 @@ import { BUGS, Extras, FAMILY_TREASURE, TREASURES, type Find } from "./extras";
 import { ROSTER } from "../sprites";
 import { Activity, Boxing, Fishing, Penalty, Tennis, type ActivityHud, type ActivityKind, type Reward } from "./activities";
 import { GROW_MS, plotsFor, stageOf, type Progress } from "./progress";
-import { EARN, SHOP, buy, claimDaily, earn, goodsOf, has, itemById, sell, stash, useItem, walletOf } from "./economy";
+import { SHOP, canBuy, claimDaily, goodsOf, grant, has, itemById, sell, splitFor, stash, useItem, walletOf, type Order, type ShopItem } from "./economy";
+import { payments } from "./payments";
+import { Aura } from "./aura";
 import { Blocks, glowMaterial, litMaterial } from "./models";
 import { CAMERA, OrbitCamera } from "./camera";
 import { Input } from "./input";
@@ -45,7 +47,7 @@ export interface HudState {
   book: { fish: { name: string; color: string; rarity: number; caught: number; best: number; here: boolean }[]; crops: { name: string; n: number }[]; trophies: { planet: string; sport: Sport }[]; treasures: { name: string; icon: string; rarity: number; n: number }[]; bugs: { name: string; color: string; rarity: number; n: number }[] };
   race: { countdown: number; time: number; ring: number; total: number; best: number | null } | null;
   /** Simulated RF wallet (see economy.ts). */
-  wallet: { rf: number; bag: { key: string; name: string; icon: string; n: number; price: number }[]; owned: string[]; equip: { rocket: string; hat: string }; items: Record<string, number>; canFertilize: boolean };
+  wallet: { bag: { key: string; name: string; icon: string; n: number; price: number }[]; owned: string[]; equip: { rocket: string; hat: string; aura: string }; items: Record<string, number>; canFertilize: boolean; simulated: boolean; owner: number | null };
 }
 export interface EngineHost {
   onHud(state: HudState): void;
@@ -76,7 +78,7 @@ function randomTangent(n: THREE.Vector3) {
 const HAT_LIFT = 0.02;
 function hatFor(id: string | undefined) { return id ? itemById(id)?.hat ?? null : null; }
 type PeerView = {
-  id: string; s: PeerState; model: FriendBillboard; label: Label; bubble: Label; bubbleT: number; shadow: THREE.Mesh; hat: Label; hatY: number;
+  id: string; s: PeerState; model: FriendBillboard; label: Label; bubble: Label; bubbleT: number; shadow: THREE.Mesh; hat: Label; hatY: number; aura: Aura | null; auraId: string;
   n: THREE.Vector3; world: THREE.Vector3; hop: number; vy: number; clipsFor: number; seen: number;
 };
 type Quest = { id: string; text: string; target: "pond" | "farm" | "pad" | "sport" | "dig" | "bug" | "race"; done: (e: Engine) => boolean };
@@ -227,6 +229,7 @@ export class Engine {
     this.scene.add(this.friend.group, this.shadow);
     this.myHat.sprite.position.set(0, headTop(clips) + HAT_LIFT, 0.05); this.friend.mesh.add(this.myHat.sprite); // tilts with the billboard
     this.wearHat();
+    this.wearAura();
     if (this.perk.id === "glow") { this.glowLight = new THREE.PointLight(home.spec.theme.glow, 0, 10, 1.6); this.glowLight.position.set(0, 1.4, 0.3); this.friend.group.add(this.glowLight); }
     this.cheer.sprite.visible = false; this.scene.add(this.cheer.sprite);
     this.myBubble.sprite.visible = false; this.scene.add(this.myBubble.sprite);
@@ -335,7 +338,7 @@ export class Engine {
     const onPlanet = this.mode === "walk" || this.mode === "play" || this.mode === "board" || this.mode === "intro" || this.mode === "race";
     const r3 = (v: THREE.Vector3): [number, number, number] => [Math.round(v.x * 1e4) / 1e4, Math.round(v.y * 1e4) / 1e4, Math.round(v.z * 1e4) / 1e4];
     const d = this.moveDir.lengthSq() > 0 ? this.moveDir.clone().normalize() : new THREE.Vector3(1, 0, 0);
-    this.net.state({ f: Number(this.friendId), fam: this.homeFamily % 9, p: onPlanet ? this.current.spec.id : 0, n: r3(this.n), d: r3(d), m: this.moving && this.mode === "walk", mode: this.mode, act: this.activity?.kind ?? "", h: walletOf(this.progress).equip.hat });
+    this.net.state({ f: Number(this.friendId), fam: this.homeFamily % 9, p: onPlanet ? this.current.spec.id : 0, n: r3(this.n), d: r3(d), m: this.moving && this.mode === "walk", mode: this.mode, act: this.activity?.kind ?? "", h: walletOf(this.progress).equip.hat, a: walletOf(this.progress).equip.aura });
   }
   private peerState(id: string, st: PeerState) {
     let p = this.peers.get(id);
@@ -345,7 +348,7 @@ export class Engine {
       label.set([{ text: `Friend #${st.f}`, color: "#7db4db", size: 34 }]);
       bubble.sprite.visible = false;
       this.scene.add(model.group, label.sprite, bubble.sprite, shadow, hat.sprite);
-      p = { id, s: st, model, label, bubble, bubbleT: 0, shadow, hat, hatY: 2, n: new THREE.Vector3(...st.n).normalize(), world: new THREE.Vector3(), hop: 0, vy: 0, clipsFor: 0, seen: this.time };
+      p = { id, s: st, model, label, bubble, bubbleT: 0, shadow, hat, hatY: 2, aura: null, auraId: "", n: new THREE.Vector3(...st.n).normalize(), world: new THREE.Vector3(), hop: 0, vy: 0, clipsFor: 0, seen: this.time };
       this.peers.set(id, p);
       this.host.onToast(`Friend #${st.f} is online`, "info");
       const view = p;
@@ -363,11 +366,16 @@ export class Engine {
     const hat = hatFor(st.h);
     if (hat) p.hat.set([{ text: hat, size: 40 }]);
     p.hat.sprite.userData.on = !!hat;
+    if ((st.a ?? "") !== p.auraId) {
+      p.auraId = st.a ?? ""; p.aura?.dispose(); p.aura = null;
+      const look = itemById(p.auraId)?.aura;
+      if (look) { p.aura = new Aura(look.color, look.sparkle); this.scene.add(p.aura.group); }
+    }
   }
   private dropPeer(id: string) {
     const p = this.peers.get(id); if (!p) return;
     this.scene.remove(p.model.group, p.label.sprite, p.bubble.sprite, p.shadow, p.hat.sprite);
-    p.model.dispose(); p.label.dispose(); p.bubble.dispose(); p.hat.dispose();
+    p.model.dispose(); p.label.dispose(); p.bubble.dispose(); p.hat.dispose(); p.aura?.dispose();
     this.peers.delete(id);
   }
   private updatePeers(dt: number) {
@@ -377,6 +385,7 @@ export class Engine {
       const here = p.s.p === planet.spec.id && p.s.mode !== "fly" && (this.mode === "walk" || this.mode === "play" || this.mode === "intro" || this.mode === "race");
       p.model.group.visible = p.label.sprite.visible = p.shadow.visible = here;
       p.hat.sprite.visible = here && p.hat.sprite.userData.on === true;
+      if (p.aura) p.aura.group.visible = here;
       p.bubbleT -= dt;
       p.bubble.sprite.visible = here && p.bubbleT > 0;
       if (!here) continue;
@@ -400,6 +409,7 @@ export class Engine {
       p.label.sprite.visible = !p.bubble.sprite.visible;
       p.bubble.sprite.position.copy(p.world).addScaledVector(n, 2.6);
       p.hat.sprite.position.copy(p.world).addScaledVector(n, p.hatY);
+      if (p.aura) { p.aura.group.position.copy(p.world).addScaledVector(n, -p.hop); p.aura.group.quaternion.setFromUnitVectors(Y, n); }
       p.shadow.position.copy(p.world).addScaledVector(n, 0.04 - p.hop); p.shadow.quaternion.setFromUnitVectors(Y, n);
     }
   }
@@ -409,6 +419,7 @@ export class Engine {
     if (!clean) return;
     this.myBubble.set([{ text: clean, color: "#111111", size: 30 }], true); this.myBubbleT = 5;
     this.net.say(clean); this.audio?.pop();
+    if (this.net.status !== "online") this.host.onToast("You're offline: only you can see this. Turn on online in 🌐.", "info");
   }
   emote(e: string) {
     this.myBubble.set([{ text: EMOTE_ICONS[e] ?? "!", size: 56 }], true); this.myBubbleT = 2.5;
@@ -488,9 +499,9 @@ export class Engine {
     const p = this.progress; p.quests ??= [];
     for (const q of QUESTS) {
       if (p.quests.includes(q.id) || !q.done(this)) continue;
-      p.quests.push(q.id); p.stars += 10; earn(p, EARN.quest);
+      p.quests.push(q.id); p.stars += 10;
       this.host.onProgress(p);
-      this.host.onToast(`Quest complete: ${q.text} · +${EARN.quest} RF`, "good");
+      this.host.onToast(`Quest complete: ${q.text} · +10 ★`, "good");
       this.audio?.fanfare(); this.celebrate("★");
       break;
     }
@@ -608,6 +619,8 @@ export class Engine {
     if (this.mode === "walk" || this.mode === "play") this.updateHosts(dt);
     if (this.time >= this.questAt && this.mode === "walk") { this.questAt = this.time + 1; this.checkQuests(); }
     this.cheerT -= dt;
+    this.myAura?.update(dt, this.time);
+    for (const p of this.peers.values()) p.aura?.update(dt, this.time);
     this.myBubbleT -= dt;
     this.updatePeers(dt);
     if (this.time >= this.netAt) { this.netAt = this.time + 0.15; this.sendState(); }
@@ -727,7 +740,7 @@ export class Engine {
       this.progress.crops[name] = (this.progress.crops[name] ?? 0) + n;
       this.progress.stars += 3; stash(this.progress, `crop:${name}`, n);
       plot.crop = null; plot.plantedAt = 0;
-      this.audio?.pickup(); this.host.onToast(`Harvested ${n > 1 ? n + " " : ""}${name} · sell it at the market`, "good");
+      this.audio?.pickup(); this.host.onToast(`Harvested ${n > 1 ? n + " " : ""}${name} · +3 ★`, "good");
     } else {
       this.host.onToast(`${plot.crop} is growing… ${Math.ceil((this.growMs - (Date.now() - plot.plantedAt)) / 1000)}s`, "info");
       return;
@@ -867,12 +880,11 @@ export class Engine {
       if (first) this.host.onToast(`New fish for your log: ${r.fish.name}!`, "good");
       this.pendingCheer = { won: true, sport: false };
     } else {
-      const rf = r.won ? EARN.sportWin : EARN.sportPlay;
-      p.stars += r.stars; earn(p, rf);
+      p.stars += r.stars;
       this.pendingCheer = { won: r.won, sport: true };
       const key = String(planet.spec.id);
-      if (r.won && !p.trophies[key]) { p.trophies[key] = r.sport; this.refreshShelf(); this.host.onToast(`🏆 Trophy from ${planet.spec.name} · +${rf} RF`, "good"); }
-      else this.host.onToast(`+${rf} RF`, r.won ? "good" : "info");
+      if (r.won && !p.trophies[key]) { p.trophies[key] = r.sport; this.refreshShelf(); this.host.onToast(`🏆 Trophy from ${planet.spec.name} · +${r.stars} ★`, "good"); }
+      else this.host.onToast(`+${r.stars} ★`, r.won ? "good" : "info");
     }
     this.host.onProgress(p);
   }
@@ -1013,7 +1025,7 @@ export class Engine {
     this.camera.position.copy(this.cine.pos);
     this.host.onToast(`This is ${this.current.spec.name}: your Friend's own planet.`, "good");
     const daily = claimDaily(this.progress);
-    if (daily) { this.host.onProgress(this.progress); window.setTimeout(() => this.host.onToast(`☀️ Daily bonus: +${daily} RF (simulated)`, "good"), 6500); }
+    if (daily) { this.host.onProgress(this.progress); window.setTimeout(() => this.host.onToast(`☀️ Daily bonus: +${daily} ★`, "good"), 6500); }
   }
   private faceShot(planet: Planet, height: number) {
     const c = planet.group.position, R = planet.R;
@@ -1104,8 +1116,8 @@ export class Engine {
     this.rocket.land(speed);
     this.cam.addShake(Math.min(1, 0.2 + speed * 0.07));
     this.audio?.land();
-    if (speed < 2.8) { this.progress.stars += 5; earn(this.progress, EARN.landingPerfect); this.host.onProgress(this.progress); this.host.onToast(`Perfect landing · +${EARN.landingPerfect} RF`, "good"); this.audio?.fanfare(); }
-    else if (speed < 5.5) { this.progress.stars += 2; earn(this.progress, EARN.landingNice); this.host.onProgress(this.progress); this.host.onToast(`Nice landing · +${EARN.landingNice} RF`, "good"); }
+    if (speed < 2.8) { this.progress.stars += 5; this.host.onProgress(this.progress); this.host.onToast("Perfect landing · +5 ★", "good"); this.audio?.fanfare(); }
+    else if (speed < 5.5) { this.progress.stars += 2; this.host.onProgress(this.progress); this.host.onToast("Nice landing · +2 ★", "good"); }
     else { this.audio?.bonk(); this.host.onToast("Bumpy landing! Everyone's fine…", "bad"); }
   }
   private finishLanding(planet: Planet, out: THREE.Vector3) {
@@ -1299,36 +1311,70 @@ export class Engine {
     const w = walletOf(this.progress);
     const plots = this.current.spec.farm ? plotsFor(this.progress, this.current.spec.id) : [];
     return {
-      rf: w.rf, owned: w.owned, equip: w.equip, items: w.items,
+      owned: w.owned, equip: w.equip, items: w.items, simulated: payments.simulated,
       bag: Object.entries(w.bag).map(([key, n]) => ({ ...goodsOf(key), n })).sort((a, b) => b.price - a.price),
       canFertilize: this.mode === "walk" && plots.some(p => p.crop && stageOf(p, Date.now(), this.growMs) < 3),
+      owner: this.current.spec.home ? null : this.current.spec.id,
     };
   }
+  /** ★ items are bought at once; RF items go through checkout() after the player confirms. */
   buy(id: string) {
-    const r = buy(this.progress, id);
+    const r = canBuy(this.progress, id);
     if (!r.ok) { this.host.onToast(r.why, "bad"); this.audio?.miss(); return; }
-    this.host.onToast(`${r.item.icon} ${r.item.name} bought for ${r.item.price} RF`, "good");
-    this.audio?.pickup();
-    if (r.item.kind === "rocket" || r.item.kind === "hat") this.applyLook(r.item.kind);
+    if (r.item.currency === "rf") { void this.checkout(id); return; }
+    grant(this.progress, r.item);
+    this.gotItem(r.item, null);
+  }
+  /** The order an RF purchase would make here (for the checkout screen). */
+  orderFor(id: string): Order | null {
+    const item = itemById(id); if (!item || item.currency !== "rf") return null;
+    const owner = this.current.spec.home ? null : this.current.spec.id;
+    return { id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`, item: id, price: item.price, buyer: String(this.friendId), planetOwner: owner, split: splitFor(item.price, owner), at: Date.now() };
+  }
+  /** Pays for an RF item through payments.ts; the item is handed over only when that succeeds. */
+  async checkout(id: string): Promise<boolean> {
+    const r = canBuy(this.progress, id), order = this.orderFor(id);
+    if (!r.ok || !order) { this.host.onToast(r.ok ? "That isn't sold for RF." : r.why, "bad"); return false; }
+    const paid = await payments.purchase(order);
+    if (!this.running) return false;
+    if (!paid.ok) { this.host.onToast(paid.why, "bad"); this.audio?.miss(); return false; }
+    order.tx = paid.tx;
+    const w = walletOf(this.progress); w.orders = [order, ...w.orders].slice(0, 50);
+    grant(this.progress, r.item);
+    this.gotItem(r.item, order);
+    return true;
+  }
+  private gotItem(item: ShopItem, order: Order | null) {
+    const owner = order?.planetOwner ? ` · ${order.split.planetOwner} RF to Friend #${order.planetOwner}'s owner` : "";
+    this.host.onToast(`${item.icon} ${item.name} is yours!${owner}`, "good");
+    if (item.currency === "rf") { this.audio?.fanfare(); this.celebrate(item.hat ?? item.icon); } else this.audio?.pickup();
+    if (item.kind === "rocket" || item.kind === "hat" || item.kind === "aura") this.applyLook(item.kind);
     this.host.onProgress(this.progress); this.emitHud();
   }
   equip(id: string) {
     const item = itemById(id), w = walletOf(this.progress);
-    if (!item || (item.kind !== "rocket" && item.kind !== "hat") || !w.owned.includes(id)) return;
+    if (!item || (item.kind !== "rocket" && item.kind !== "hat" && item.kind !== "aura") || !w.owned.includes(id)) return;
     w.equip[item.kind] = id; this.applyLook(item.kind);
     this.audio?.blip(660);
     this.host.onProgress(this.progress); this.emitHud();
   }
-  private applyLook(kind: "rocket" | "hat") {
-    if (kind === "hat") { this.wearHat(); this.celebrate(hatFor(walletOf(this.progress).equip.hat) ?? "★"); this.sendState(); return; }
+  private applyLook(kind: "rocket" | "hat" | "aura") {
+    if (kind === "hat") { this.wearHat(); this.sendState(); return; }
+    if (kind === "aura") { this.wearAura(); this.sendState(); return; }
     if (this.mode === "walk" || this.mode === "play" || this.mode === "race" || this.mode === "intro") this.repaintRocket();
     else this.pendingPaint = true;
   }
   private pendingPaint = false;
+  private myAura: Aura | null = null;
+  private wearAura() {
+    this.myAura?.dispose(); this.myAura = null;
+    const look = itemById(walletOf(this.progress).equip.aura)?.aura;
+    if (look) { this.myAura = new Aura(look.color, look.sparkle); this.friend.group.add(this.myAura.group); }
+  }
   sell(key: string) {
     const got = sell(this.progress, key);
     if (!got) return;
-    this.host.onToast(`Sold for ${got} RF`, "good"); this.audio?.pickup();
+    this.host.onToast(`Sold for ${got} ★`, "good"); this.celebrate("★"); this.audio?.pickup();
     this.host.onProgress(this.progress); this.emitHud();
   }
   fertilize() {
@@ -1415,7 +1461,7 @@ export class Engine {
     const stars = find.rarity * 4;
     p.stars += stars;
     this.host.onProgress(p);
-    this.host.onToast(`${find.icon} ${e.kind === "dig" ? "You dug up" : "You caught"} a ${find.name}${find.rarity === 4 ? " · rare!" : ""} · sell it at the market`, "good");
+    this.host.onToast(`${find.icon} ${e.kind === "dig" ? "You dug up" : "You caught"} a ${find.name}${find.rarity === 4 ? " · rare!" : ""} · +${stars} ★`, "good");
     this.audio?.pickup();
     this.celebrate(find.icon);
     this.promptExtra = null;
@@ -1444,9 +1490,9 @@ export class Engine {
     const p = this.progress, key = String(this.current.spec.id), best = p.raceBest?.[key];
     const record = best === undefined || r.t < best;
     p.raceBest = { ...(p.raceBest ?? {}), [key]: record ? Math.round(r.t * 10) / 10 : best! };
-    const stars = r.t < 30 ? 20 : r.t < 45 ? 12 : 6, rf = r.t < 30 ? EARN.raceFast : r.t < 45 ? EARN.raceMid : EARN.raceSlow;
-    p.stars += stars; earn(p, rf); this.host.onProgress(p);
-    this.host.onToast(`🛹 ${r.t.toFixed(1)}s${record ? " · new best!" : ` · best ${best!.toFixed(1)}s`} · +${rf} RF`, "good");
+    const stars = r.t < 30 ? 20 : r.t < 45 ? 12 : 6;
+    p.stars += stars; this.host.onProgress(p);
+    this.host.onToast(`🛹 ${r.t.toFixed(1)}s${record ? " · new best!" : ` · best ${best!.toFixed(1)}s`} · +${stars} ★`, "good");
     this.audio?.fanfare(); this.celebrate("🏁");
   }
   private updateRace(dt: number) {

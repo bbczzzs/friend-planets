@@ -239,7 +239,7 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
 .fp-discover { position: absolute; left: 12px; bottom: calc(var(--safe-b) + 64px); display: flex; gap: 4px; padding: 4px; border-radius: 999px; z-index: 3; }
 .fp-discover button, .fp-discover input { height: 36px; border: none; border-radius: 999px; background: transparent; color: var(--text); font: 700 12px var(--body); padding: 0 12px; }
 .fp-discover .fp-disc-btn { background: rgba(255,255,255,0.1); }
-.fp-discover button[type="submit"] { background: var(--chalk); color: var(--ink); }
+.fp-discover .fp-visit { background: var(--chalk); color: var(--ink); }
 .fp-discover input { width: 92px; background: rgba(0,0,0,0.25); font: 600 13px var(--body); }
 .fp-discover input::placeholder { color: var(--faint); }
 .fp-discover button:disabled { opacity: 0.45; }
@@ -310,9 +310,59 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
 .fp-goods-name b, .fp-item-txt b { display: block; font: 700 13px/1.2 var(--display); color: var(--text); }
 .fp-goods-name small, .fp-item-txt small { display: block; font: 500 11.5px/1.35 var(--body); color: var(--muted); }
 .fp-item-btns { display: flex; gap: 6px; flex: none; }
-.fp-goods button, .fp-items button { flex: none; height: 34px; min-width: 72px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(242,196,107,0.55); background: rgba(242,196,107,0.14); color: var(--gold); font: 800 12px var(--body); }
-.fp-goods button:hover:not(:disabled), .fp-items button:hover:not(:disabled) { background: rgba(242,196,107,0.26); }
-.fp-goods button:disabled, .fp-items button:disabled { border-color: rgba(255,255,255,0.1); background: transparent; color: var(--faint); cursor: default; }
+/* buttons: ★ prices in chalk, RF prices in gold, owned things as quiet ghosts */
+.fp-buy, .fp-owned { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 34px; min-width: 76px; padding: 0 14px; border-radius: 999px; font: 800 12px var(--body); white-space: nowrap; }
+.fp-buy { border: none; background: var(--chalk); color: var(--ink); box-shadow: 0 4px 12px rgba(0,0,0,0.25); }
+.fp-buy .fp-coin { width: 15px; height: 15px; }
+.fp-buy.rf { background: linear-gradient(180deg, #ffd98c, var(--gold) 55%, #d9a447); color: #3a2608; box-shadow: 0 4px 14px rgba(242,196,107,0.35), inset 0 1px 0 rgba(255,255,255,0.6); }
+.fp-buy:hover:not(:disabled) { filter: brightness(1.06); }
+.fp-buy:disabled { background: rgba(255,255,255,0.08); color: var(--faint); box-shadow: none; cursor: default; }
+.fp-owned { border: 1px solid var(--rim-hi); background: rgba(255,255,255,0.06); color: var(--text); }
+.fp-owned:disabled { opacity: 0.45; }
+.fp-star { color: var(--gold); font-size: 15px; line-height: 1; }
+.fp-items li.premium .fp-item-ico { background: radial-gradient(circle at 35% 30%, rgba(242,196,107,0.35), rgba(242,196,107,0.08)); box-shadow: inset 0 0 0 1px rgba(242,196,107,0.35); }
+.fp-tag { display: inline-block; margin-left: 7px; padding: 1px 7px; border-radius: 999px; background: rgba(242,196,107,0.16); color: var(--gold); font: 800 8.5px/1.6 var(--body); font-style: normal; letter-spacing: 0.1em; text-transform: uppercase; vertical-align: 2px; }
+.fp-support { margin: 8px 0 2px !important; padding: 7px 12px; border-radius: 12px; background: rgba(242,196,107,0.1); border: 1px solid rgba(242,196,107,0.25); font: 600 12px/1.4 var(--body) !important; color: var(--text) !important; }
+.fp-tabs button { position: relative; }
+.fp-tabdot { position: absolute; top: 6px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); }
+
+/* featured shelf */
+.fp-featured { overflow-y: auto; min-height: 0; }
+.fp-feat-head { display: flex; align-items: baseline; justify-content: space-between; margin: 12px 2px 8px !important; }
+.fp-feat-head span { font: 800 11px var(--body); letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); }
+.fp-feat-head small { font: 500 11px var(--body); color: var(--faint); }
+.fp-feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.fp-feat { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 16px 10px 12px; border-radius: 16px; text-align: center; overflow: hidden;
+  background: radial-gradient(120% 80% at 50% 0%, rgba(242,196,107,0.22), rgba(242,196,107,0.03) 60%), rgba(255,255,255,0.04); border: 1px solid rgba(242,196,107,0.32); }
+.fp-feat::after { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,0.12) 48%, transparent 60%); transform: translateX(-120%); animation: fp-shine 4.5s ease-in-out infinite; pointer-events: none; }
+.fp-feat:nth-child(2)::after { animation-delay: 1.2s; } .fp-feat:nth-child(3)::after { animation-delay: 2.4s; }
+@keyframes fp-shine { 0%, 60% { transform: translateX(-120%); } 85%, 100% { transform: translateX(120%); } }
+.fp-feat-ico { font-size: 40px; line-height: 1.1; filter: drop-shadow(0 6px 14px rgba(0,0,0,0.35)); animation: fp-float 3.2s ease-in-out infinite; }
+@keyframes fp-float { 50% { transform: translateY(-4px); } }
+.fp-feat b { font: 800 13.5px/1.2 var(--display); color: var(--text); }
+.fp-feat small { font: 500 11px/1.35 var(--body); color: var(--muted); min-height: 30px; }
+.fp-feat .fp-buy, .fp-feat .fp-owned { margin-top: 4px; width: 100%; }
+.fp-feat.owned { border-color: rgba(255,255,255,0.14); background: rgba(255,255,255,0.04); }
+
+/* checkout */
+.fp-checkout { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; padding: 16px; border-radius: 22px; background: rgba(8, 9, 20, 0.72); animation: fp-fade 160ms ease; }
+.fp-co-card { width: min(320px, 100%); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 22px 20px 18px; border-radius: 20px; text-align: center;
+  background: radial-gradient(120% 70% at 50% 0%, rgba(242,196,107,0.2), rgba(20,21,34,0) 60%), #16172a; border: 1px solid rgba(242,196,107,0.4); box-shadow: 0 20px 60px rgba(0,0,0,0.5); animation: fp-rise 220ms cubic-bezier(.2,.9,.3,1.2); }
+.fp-co-ico { font-size: 52px; line-height: 1.1; filter: drop-shadow(0 8px 18px rgba(0,0,0,0.4)); }
+.fp-co-card h3 { margin: 2px 0 0 !important; font: 800 18px var(--display) !important; letter-spacing: -0.01em !important; text-transform: none !important; color: var(--text) !important; }
+.fp-co-card > p { margin: 0 !important; font-size: 12px !important; }
+.fp-co-price { display: flex; align-items: center; gap: 6px; margin: 8px 0 4px; font: 700 13px var(--body); color: var(--muted); }
+.fp-co-price b { font: 900 28px var(--display); color: var(--gold); }
+.fp-co-price .fp-coin { width: 24px; height: 24px; }
+.fp-co-lines { list-style: none; width: 100%; margin: 4px 0; padding: 0; border-top: 1px solid rgba(255,255,255,0.08); }
+.fp-co-lines li { display: flex; justify-content: space-between; gap: 8px; padding: 7px 2px; border-bottom: 1px solid rgba(255,255,255,0.08); font: 500 12px var(--body); color: var(--muted); }
+.fp-co-lines b { color: var(--text); font-weight: 700; }
+.fp-co-sim { margin: 4px 0 0 !important; font: 500 11px/1.4 var(--body) !important; color: var(--faint) !important; }
+.fp-co-btns { display: flex; gap: 8px; width: 100%; margin-top: 6px; }
+.fp-co-btns .fp-cta { flex: 1; min-width: 0; margin-top: 0; height: 44px; font-size: 14px; }
+.fp-cta.fp-gold { background: linear-gradient(180deg, #ffd98c, var(--gold) 55%, #d9a447); color: #3a2608; box-shadow: 0 8px 22px rgba(242,196,107,0.35), inset 0 1px 0 rgba(255,255,255,0.6); }
+.fp-cta:disabled { opacity: 0.6; }
+@media (max-width: 640px) { .fp-feat-grid { grid-template-columns: 1fr; } .fp-feat { flex-direction: row; text-align: left; padding: 10px 12px; } .fp-feat small { min-height: 0; } .fp-feat .fp-buy, .fp-feat .fp-owned { width: auto; margin: 0 0 0 auto; } .fp-feat-ico { font-size: 30px; } }
 .fp-item-tag { flex: none; padding: 0 8px; font: 700 10px var(--body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold); }
 .fp-shop .fp-empty { font: 500 12.5px/1.55 var(--body); color: var(--muted); padding: 14px 2px; }
 .fp-shop .fp-cta { align-self: center; flex: none; }
