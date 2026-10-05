@@ -23,11 +23,30 @@ const SLIDES = [
 ];
 type Phase = "loading" | "error" | "title" | "playing";
 type ShopTab = "sell" | ItemKind;
-const SHOP_TABS: { id: ShopTab; label: string }[] = [{ id: "sell", label: "💰 Sell" }, { id: "hat", label: "🎩 Hats" }, { id: "rocket", label: "🚀 Rockets" }, { id: "item", label: "🧪 Items" }, { id: "gear", label: "⚙️ Upgrades" }];
+const SHOP_TABS: { id: ShopTab; label: string }[] = [{ id: "sell", label: "Sell" }, { id: "hat", label: "Hats" }, { id: "rocket", label: "Rockets" }, { id: "item", label: "Items" }, { id: "gear", label: "Upgrades" }];
 
 function Portrait({ pilot, size = 96 }: { pilot: PilotSprite; size?: number }) {
   const src = spriteCanvas(pilot.clips.idle.down[0]).toDataURL();
   return <img className="fp-portrait" src={src} width={size} height={size} alt="" />;
+}
+
+/** Thin line icons for the toolbar (currentColor, 24px grid). */
+const ICONS = {
+  book: <><path d="M5 4.5h11.5a2 2 0 0 1 2 2V20H7a2 2 0 0 1-2-2z" /><path d="M5 18a2 2 0 0 1 2-2h11.5" /><path d="M9 8.5h6" /></>,
+  bag: <><path d="M5.5 8.5h13l-1 11h-11z" /><path d="M9 8.5V7a3 3 0 0 1 6 0v1.5" /></>,
+  globe: <><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17M12 3.5c2.4 2.6 2.4 14.4 0 17M12 3.5c-2.4 2.6-2.4 14.4 0 17" /></>,
+  soundOn: <><path d="M4.5 9.5h3.5l4.5-4v13l-4.5-4H4.5z" /><path d="M16 9a4.5 4.5 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11" /></>,
+  soundOff: <><path d="M4.5 9.5h3.5l4.5-4v13l-4.5-4H4.5z" /><path d="M16.5 9.5l5 5M21.5 9.5l-5 5" /></>,
+  help: <><circle cx="12" cy="12" r="8.5" /><path d="M9.8 9.6a2.3 2.3 0 1 1 3.2 2.1c-.6.3-1 .8-1 1.5v.4" /><path d="M12 16.6v.1" /></>,
+  chat: <path d="M4.5 5.5h15v10h-9l-4.5 3.5V15.5h-1.5z" />,
+  smile: <><circle cx="12" cy="12" r="8.5" /><path d="M8.8 14.2a4 4 0 0 0 6.4 0M9.3 9.8v.1M14.7 9.8v.1" /></>,
+};
+function Icon({ name }: { name: keyof typeof ICONS }) {
+  return <svg className="fp-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICONS[name]}</svg>;
+}
+/** The RF coin: a small gold disc. */
+function Coin() {
+  return <svg className="fp-coin" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.5" /><circle cx="10" cy="10" r="5.2" /></svg>;
 }
 
 function Meter({ m }: { m: NonNullable<ActivityHud["meter"]> }) {
@@ -58,6 +77,7 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
   const [visitId, setVisitId] = useState("");
   const [slide, setSlide] = useState(0);
   const [shopTab, setShopTab] = useState<ShopTab>("sell");
+  const [emotes, setEmotes] = useState(false);
 
   const toast = useCallback((text: string, kind: ToastKind = "info") => {
     const id = ++toastId.current;
@@ -137,22 +157,24 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
           <div className="fp-hud-l">
             {planet && !act && <div className="fp-pill fp-where">
               <b>{planet.name}</b>
-              <span>{planet.home ? "your planet" : `Friend #${planet.host}'s planet`} · {planet.region}</span>
+              <span>{planet.home ? "Your planet" : `Friend #${planet.host}'s planet`}</span>
             </div>}
-            {flying && hud.fly && <div className="fp-pill fp-speed"><b>{hud.fly.speed}</b><span>km/s{hud.fly.boosting ? " · BOOST" : ""}</span></div>}
-            <div className="fp-pill fp-stars"><b>{hud.stars}</b><span>★</span></div>
-            <button type="button" className="fp-pill fp-rf" onClick={() => setPanel("shop")} title="Simulated RF: earn by playing, spend in the shop"><b>{hud.wallet.rf}</b><span>RF <small>sim</small></span></button>
-            {!act && !flying && <div className="fp-pill fp-perk" title={hud.perk.text}><b>{hud.perk.icon} {hud.perk.name}</b><span>{hud.perk.text}</span></div>}
-            {!act && mode === "walk" && hud.quest && <div className="fp-pill fp-quest"><b>Quest {hud.quest.n}/{hud.quest.total}</b><span>{hud.quest.text}</span></div>}
+            {flying && hud.fly && <div className="fp-pill fp-speed"><b>{hud.fly.speed}</b><span>km/s{hud.fly.boosting ? " · boost" : ""}</span></div>}
+            {!act && mode === "walk" && hud.quest && <div className="fp-pill fp-quest">
+              <i className="fp-ring" style={{ ["--p" as string]: `${(hud.quest.n - 1) / hud.quest.total * 100}%` }}>{hud.quest.n}</i>
+              <span>{hud.quest.text}</span>
+            </div>}
           </div>
           <div className="fp-hud-r">
-            {act ? <button type="button" className="fp-leave" onClick={() => engine.current?.endActivity()}><kbd>Esc</kbd> Leave</button> : <>
-              <button type="button" className="fp-icon fp-bookbtn" onClick={() => setPanel("book")} aria-label="Collection">🎣 <small>{fishCaught}</small></button>
-              {mode === "walk" && <button type="button" className="fp-icon fp-shopbtn" onClick={() => setPanel("shop")} aria-label="Market and shop">🛒{hud.wallet.bag.length > 0 && <small>{hud.wallet.bag.reduce((n, g) => n + g.n, 0)}</small>}</button>}
-            </>}
-            <button type="button" className={`fp-icon fp-online${hud.online.status === "online" ? " on" : ""}`} onClick={() => setPanel("online")} aria-label="Who's online">🌐 <small>{hud.online.status === "online" ? hud.online.players.length + 1 : hud.online.status === "connecting" ? "…" : "off"}</small></button>
-            <button type="button" className="fp-icon" onClick={toggleSound} aria-label={muted ? "Turn sound on" : "Turn sound off"}>{muted ? "🔇" : "🔊"}</button>
-            <button type="button" className="fp-icon" onClick={() => setPanel("help")} aria-label="How to play">?</button>
+            <button type="button" className="fp-pill fp-rf" onClick={() => setPanel("shop")} title="Simulated RF: earn by playing, spend at the market"><Coin /><b>{hud.wallet.rf}</b><small>RF · sim</small></button>
+            {act ? <button type="button" className="fp-pill fp-leave" onClick={() => engine.current?.endActivity()}><kbd>Esc</kbd> Leave</button>
+              : <div className="fp-bar-r" role="toolbar" aria-label="Menu">
+                <button type="button" className="fp-icon" onClick={() => setPanel("book")} aria-label="Collection" title="Collection"><Icon name="book" />{fishCaught > 0 && <small>{fishCaught}</small>}</button>
+                {mode === "walk" && <button type="button" className="fp-icon" onClick={() => setPanel("shop")} aria-label="Market and shop" title="Market"><Icon name="bag" />{hud.wallet.bag.length > 0 && <small className="fp-badge">{hud.wallet.bag.reduce((n, g) => n + g.n, 0)}</small>}</button>}
+                <button type="button" className={`fp-icon${hud.online.status === "online" ? " on" : ""}`} onClick={() => setPanel("online")} aria-label="Who's online" title="Online"><Icon name="globe" />{hud.online.status === "online" && <small>{hud.online.players.length + 1}</small>}</button>
+                <button type="button" className="fp-icon" onClick={toggleSound} aria-label={muted ? "Turn sound on" : "Turn sound off"} title="Sound"><Icon name={muted ? "soundOff" : "soundOn"} /></button>
+                <button type="button" className="fp-icon" onClick={() => setPanel("help")} aria-label="How to play" title="How to play"><Icon name="help" /></button>
+              </div>}
           </div>
         </div>
 
@@ -165,11 +187,12 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
           <p className="fp-act-hint">A / D (or the stick) steer · Space jumps for high rings · Shift boosts · Esc quits</p>
         </div>}
         {mode === "walk" && <div className="fp-chatbar">
-          {chat === null ? <button type="button" className="fp-chatbtn" onClick={() => setChat("")}>💬 <small>T</small></button>
+          {chat === null ? <button type="button" className="fp-icon fp-glass" onClick={() => setChat("")} aria-label="Chat (T)" title="Chat (T)"><Icon name="chat" /></button>
             : <form onSubmit={e => { e.preventDefault(); if (chat.trim()) engine.current?.say(chat); setChat(null); }}>
                 <input autoFocus maxLength={80} placeholder="Say something…" value={chat} onChange={e => setChat(e.target.value)} onKeyDown={e => { if (e.key === "Escape") setChat(null); }} />
               </form>}
-          {(["wave", "heart", "party", "laugh"] as const).map(e => <button key={e} type="button" className="fp-emote" onClick={() => engine.current?.emote(e)} aria-label={e}>{({ wave: "👋", heart: "❤️", party: "🎉", laugh: "😂" })[e]}</button>)}
+          <button type="button" className={`fp-icon fp-glass${emotes ? " on" : ""}`} onClick={() => setEmotes(!emotes)} aria-label="Emotes" aria-expanded={emotes}><Icon name="smile" /></button>
+          {emotes && <div className="fp-emotes">{(["wave", "heart", "party", "laugh"] as const).map(e => <button key={e} type="button" className="fp-emote" onClick={() => { engine.current?.emote(e); setEmotes(false); }} aria-label={e}>{({ wave: "👋", heart: "❤️", party: "🎉", laugh: "😂" })[e]}</button>)}</div>}
         </div>}
 
         {mode === "launch" && hud.countdown > 0 && <div key={hud.countdown} className="fp-count">{hud.countdown}</div>}
@@ -262,14 +285,10 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
         <div className="fp-card fp-help" role="dialog" aria-modal="true" aria-label="How to play">
           <h2>How to play</h2>
           <ul>
-            <li><b>Walk</b> WASD / arrows, or the stick on phones · <b>Look</b> drag · <b>Zoom</b> wheel or I/O · <b>Jump</b> Space</li>
-            <li><b>Use</b> E near the rocket, the dock, a farm plot or a sport</li>
-            <li><b>Fly</b> WASD steers, Shift boosts, C swaps cockpit and outside view. Tap a planet at the bottom for autopilot, E to land.</li>
-            <li><b>Games</b> use Space / E / tap (hold to reel or power up), A / D to aim or dodge, S to block and W for the star punch. Esc leaves.</li>
-            <li><b>Space</b>: 🔭 Discover flies you to a random Friend's planet, or type any token number to visit that Friend.</li>
-            <li><b>Your family perk</b> changes how you play; Friends you visit come to hang out at your campfire.</li>
-            <li><b>🛒 Market</b>: sell what you catch, grow and dig for RF, then buy hats, rocket paint, bait, fertilizer and upgrades. Quests, sports, races, good landings and a daily bonus pay RF too.</li>
-            <li>Every planet belongs to a real Rare Friend. RF is simulated for now: nothing touches your wallet.</li>
+            <li><b>Walk</b> WASD or the stick · <b>Look</b> drag · <b>Jump</b> Space · <b>Use</b> E</li>
+            <li><b>Fly</b> WASD steers, Shift boosts, C swaps the view. Tap a planet for autopilot, E to land. Discover visits any Friend by number.</li>
+            <li><b>Play</b> Space / E / tap, A / D to aim or dodge, S blocks, W star punch. Esc leaves.</li>
+            <li><b>Market</b> sell what you catch, grow and dig, then buy hats, rocket paint and upgrades. Quests, sports, races and landings pay RF too (simulated for now).</li>
           </ul>
           <button type="button" className="fp-cta" onClick={() => setPanel(null)}>Back to playing</button>
         </div>
@@ -292,8 +311,8 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
       </div>}
       {panel === "shop" && hud && <div className="fp-screen" onPointerDown={e => { if (e.target === e.currentTarget) setPanel(null); }}>
         <div className="fp-card fp-shop" role="dialog" aria-modal="true" aria-label="Market and shop">
-          <div className="fp-shop-head"><h2>🛒 Market</h2><div className="fp-shop-bal"><b>{hud.wallet.rf}</b> RF</div></div>
-          <p className="fp-sim">Simulated RF for now: nothing here touches your wallet. Everything has a fixed price, no mystery boxes.</p>
+          <div className="fp-shop-head"><h2>Market</h2><div className="fp-shop-bal"><Coin /><b>{hud.wallet.rf}</b> RF</div><button type="button" className="fp-x" onClick={() => setPanel(null)} aria-label="Close">×</button></div>
+          <p className="fp-sim">Simulated RF · nothing touches your wallet · fixed prices, no mystery boxes</p>
           <div className="fp-tabs" role="tablist">{SHOP_TABS.map(t => <button key={t.id} type="button" role="tab" aria-selected={shopTab === t.id} className={shopTab === t.id ? "on" : ""} onClick={() => setShopTab(t.id)}>{t.label}</button>)}</div>
           {shopTab === "sell" ? <>
             {hud.wallet.bag.length ? <>
@@ -317,12 +336,11 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
                 : <button type="button" disabled={hud.wallet.rf < i.price} onClick={() => engine.current?.buy(i.id)}>{i.price} RF</button>}
             </li>;
           })}</ul>}
-          <button type="button" className="fp-cta fp-ghost" onClick={() => setPanel(null)}>Close</button>
         </div>
       </div>}
       {panel === "book" && hud && <div className="fp-screen" onPointerDown={e => { if (e.target === e.currentTarget) setPanel(null); }}>
         <div className="fp-card fp-book" role="dialog" aria-modal="true" aria-label="Collection">
-          <h2>Collection</h2>
+          <div className="fp-shop-head"><h2>Collection</h2><div className="fp-shop-bal fp-starbal">★ <b>{hud.stars}</b></div><button type="button" className="fp-x" onClick={() => setPanel(null)} aria-label="Close">×</button></div>
           <h3>Fish {fishCaught}/{hud.book.fish.length}</h3>
           <div className="fp-fishgrid">
             {hud.book.fish.map(f => <div key={f.name} className={`fp-fish${f.caught ? "" : " unknown"}${f.here ? " here" : ""}`} title={f.caught ? `${f.name} · best ${f.best} cm` : "Not caught yet"}>
@@ -338,7 +356,6 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
           <p>{hud.book.crops.length ? hud.book.crops.map(c => `${c.name} ×${c.n}`).join(" · ") : "Nothing yet: plant something on a farm."}</p>
           <h3>Trophies {hud.book.trophies.length}/7</h3>
           <p>{hud.book.trophies.length ? hud.book.trophies.map(t => `${SPORTS[t.sport].emoji} ${t.planet}`).join(" · ") : "Win the sport on a Friend's planet to earn its trophy."}</p>
-          <button type="button" className="fp-cta" onClick={() => setPanel(null)}>Close</button>
         </div>
       </div>}
     </div>

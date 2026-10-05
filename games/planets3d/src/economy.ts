@@ -45,7 +45,7 @@ export const SHOP: ShopItem[] = [
   { id: "rocket:midnight", kind: "rocket", name: "Midnight", icon: "🌙", price: 80, text: "Ink black, silver trim", colors: ["#2b2d42", "#c9d1e0"] },
   { id: "rocket:gold", kind: "rocket", name: "Gold", icon: "🏆", price: 150, text: "For the richest pilots", colors: ["#e0a91f", "#fff1a8"] },
   // Hats: worn on your planet, and other players online see them.
-  { id: "hat:none", kind: "hat", name: "No hat", icon: "⭕", price: 0, text: "Just your Friend" },
+  { id: "hat:none", kind: "hat", name: "No hat", icon: "—", price: 0, text: "Just your Friend" },
   { id: "hat:cap", kind: "hat", name: "Cap", icon: "🧢", price: 25, text: "Casual explorer", hat: "🧢" },
   { id: "hat:bow", kind: "hat", name: "Bow", icon: "🎀", price: 25, text: "Cute and tidy", hat: "🎀" },
   { id: "hat:flower", kind: "hat", name: "Flower", icon: "🌸", price: 30, text: "Fresh from the farm", hat: "🌸" },

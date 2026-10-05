@@ -490,7 +490,7 @@ export class Engine {
       if (p.quests.includes(q.id) || !q.done(this)) continue;
       p.quests.push(q.id); p.stars += 10; earn(p, EARN.quest);
       this.host.onProgress(p);
-      this.host.onToast(`Quest complete: ${q.text}! +10 ★ +${EARN.quest} RF`, "good");
+      this.host.onToast(`Quest complete: ${q.text} · +${EARN.quest} RF`, "good");
       this.audio?.fanfare(); this.celebrate("★");
       break;
     }
@@ -727,7 +727,7 @@ export class Engine {
       this.progress.crops[name] = (this.progress.crops[name] ?? 0) + n;
       this.progress.stars += 3; stash(this.progress, `crop:${name}`, n);
       plot.crop = null; plot.plantedAt = 0;
-      this.audio?.pickup(); this.host.onToast(`Harvested ${n > 1 ? n + " " : ""}${name}! +3 ★ · sell it in the 🛒 market`, "good");
+      this.audio?.pickup(); this.host.onToast(`Harvested ${n > 1 ? n + " " : ""}${name} · sell it at the market`, "good");
     } else {
       this.host.onToast(`${plot.crop} is growing… ${Math.ceil((this.growMs - (Date.now() - plot.plantedAt)) / 1000)}s`, "info");
       return;
@@ -871,8 +871,8 @@ export class Engine {
       p.stars += r.stars; earn(p, rf);
       this.pendingCheer = { won: r.won, sport: true };
       const key = String(planet.spec.id);
-      if (r.won && !p.trophies[key]) { p.trophies[key] = r.sport; this.refreshShelf(); this.host.onToast(`🏆 Trophy from ${planet.spec.name}! +${r.stars} ★ +${rf} RF`, "good"); }
-      else this.host.onToast(`+${r.stars} ★ +${rf} RF`, r.won ? "good" : "info");
+      if (r.won && !p.trophies[key]) { p.trophies[key] = r.sport; this.refreshShelf(); this.host.onToast(`🏆 Trophy from ${planet.spec.name} · +${rf} RF`, "good"); }
+      else this.host.onToast(`+${rf} RF`, r.won ? "good" : "info");
     }
     this.host.onProgress(p);
   }
@@ -1104,8 +1104,8 @@ export class Engine {
     this.rocket.land(speed);
     this.cam.addShake(Math.min(1, 0.2 + speed * 0.07));
     this.audio?.land();
-    if (speed < 2.8) { this.progress.stars += 5; earn(this.progress, EARN.landingPerfect); this.host.onProgress(this.progress); this.host.onToast(`Perfect landing! +5 ★ +${EARN.landingPerfect} RF`, "good"); this.audio?.fanfare(); }
-    else if (speed < 5.5) { this.progress.stars += 2; earn(this.progress, EARN.landingNice); this.host.onProgress(this.progress); this.host.onToast(`Nice landing! +2 ★ +${EARN.landingNice} RF`, "good"); }
+    if (speed < 2.8) { this.progress.stars += 5; earn(this.progress, EARN.landingPerfect); this.host.onProgress(this.progress); this.host.onToast(`Perfect landing · +${EARN.landingPerfect} RF`, "good"); this.audio?.fanfare(); }
+    else if (speed < 5.5) { this.progress.stars += 2; earn(this.progress, EARN.landingNice); this.host.onProgress(this.progress); this.host.onToast(`Nice landing · +${EARN.landingNice} RF`, "good"); }
     else { this.audio?.bonk(); this.host.onToast("Bumpy landing! Everyone's fine…", "bad"); }
   }
   private finishLanding(planet: Planet, out: THREE.Vector3) {
@@ -1362,7 +1362,7 @@ export class Engine {
       else {
         const plot = plotsFor(this.progress, this.current.spec.id)[this.promptPlot], stage = stageOf(plot, Date.now(), this.growMs);
         prompt = stage === 0 ? { title: `Plant ${crop.name}`, detail: `Ready in ${Math.round(this.growMs / 1000)}s` }
-          : stage === 3 ? { title: `Harvest ${plot.crop}`, detail: "+3 ★" }
+          : stage === 3 ? { title: `Harvest ${plot.crop}`, detail: "Ready to pick" }
           : { title: `${plot.crop} growing`, detail: `${Math.ceil((this.growMs - (Date.now() - plot.plantedAt)) / 1000)}s left` };
       }
     }
@@ -1415,7 +1415,7 @@ export class Engine {
     const stars = find.rarity * 4;
     p.stars += stars;
     this.host.onProgress(p);
-    this.host.onToast(`${find.icon} ${e.kind === "dig" ? "You dug up" : "You caught"} a ${find.name}! +${stars} ★${find.rarity === 4 ? "  (rare!)" : ""}`, "good");
+    this.host.onToast(`${find.icon} ${e.kind === "dig" ? "You dug up" : "You caught"} a ${find.name}${find.rarity === 4 ? " · rare!" : ""} · sell it at the market`, "good");
     this.audio?.pickup();
     this.celebrate(find.icon);
     this.promptExtra = null;
@@ -1446,7 +1446,7 @@ export class Engine {
     p.raceBest = { ...(p.raceBest ?? {}), [key]: record ? Math.round(r.t * 10) / 10 : best! };
     const stars = r.t < 30 ? 20 : r.t < 45 ? 12 : 6, rf = r.t < 30 ? EARN.raceFast : r.t < 45 ? EARN.raceMid : EARN.raceSlow;
     p.stars += stars; earn(p, rf); this.host.onProgress(p);
-    this.host.onToast(`🛹 Finished in ${r.t.toFixed(1)}s${record ? " · new best!" : ` · best ${best!.toFixed(1)}s`} +${stars} ★ +${rf} RF`, "good");
+    this.host.onToast(`🛹 ${r.t.toFixed(1)}s${record ? " · new best!" : ` · best ${best!.toFixed(1)}s`} · +${rf} RF`, "good");
     this.audio?.fanfare(); this.celebrate("🏁");
   }
   private updateRace(dt: number) {
