@@ -20,6 +20,7 @@ const SLIDES = [
   { icon: "🚀", title: "Fly between Friends", text: "Board your rocket, fly from the cockpit and land softly on other Friends' planets. Discover any Friend in the collection by its token number." },
   { icon: "🎣", title: "Something to do everywhere", text: "Fish, farm, dig for treasure, catch butterflies, race a hoverboard through rings, and beat each planet's Friend at penalties, tennis or boxing." },
   { icon: "🌐", title: "Meet other players", text: "Everyone online shares the galaxy: see their Friends, chat and wave. Your family perk changes how you play, and Friends you visit come to your campfire." },
+  { icon: "★", title: "Earn Stars, look premium", text: "Sell what you catch and grow, finish daily tasks, and spend Stars on upgrades. Premium hats, glowing auras and rocket paint make your Friend stand out to everyone online." },
 ];
 type Phase = "loading" | "error" | "title" | "playing";
 type ShopTab = "featured" | "sell" | ItemKind;
@@ -349,7 +350,7 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
           <p>{hud.online.status === "online" ? `${hud.online.players.length + 1} Friend${hud.online.players.length ? "s" : ""} in the galaxy (you included).` : hud.online.status === "connecting" ? "Connecting…" : "You're offline."}</p>
           <ul>
             {hud.online.players.map(p => <li key={p.id}>
-              <span><b>Friend #{p.friendId}</b> <small>{FAMILY_NAMES[p.family % 9]} · {p.where}</small></span>
+              <span><b>Friend #{p.friendId}{p.look && <em className="fp-look">{p.look}</em>}</b> <small>{FAMILY_NAMES[p.family % 9]} · {p.where}</small></span>
               <button type="button" disabled={p.flying || p.here || mode !== "walk" && mode !== "fly"} onClick={() => { engine.current?.goTo(p.planetId); setPanel(null); }}>{p.here ? "Here" : p.flying ? "Flying" : "Go"}</button>
             </li>)}
             {hud.online.status === "online" && !hud.online.players.length && <li className="fp-empty">Nobody else right now. Share the game and meet here!</li>}

@@ -41,7 +41,7 @@ export interface HudState {
   land: { phase: LandPhase; alt: number; speed: number; thrusting: boolean } | null;
   perk: Perk;
   quest: { n: number; total: number; text: string } | null;
-  online: { status: NetStatus; enabled: boolean; players: { id: string; friendId: number; family: number; where: string; here: boolean; flying: boolean; planetId: number }[] };
+  online: { status: NetStatus; enabled: boolean; players: { id: string; friendId: number; family: number; where: string; here: boolean; flying: boolean; planetId: number; look: string }[] };
   discovering: boolean;
   stars: number;
   activity: ActivityHud | null;
@@ -445,7 +445,7 @@ export class Engine {
     const players = [...this.peers.values()].map(p => {
       const planet = this.planets.find(q => q.spec.id === p.s.p);
       const where = p.s.mode === "fly" || p.s.p === 0 ? "flying in space" : planet ? `on ${planet.spec.name}${planet.spec.id === p.s.f ? " (home)" : ""}` : `on Friend #${p.s.p}'s planet`;
-      return { id: p.id, friendId: p.s.f, family: p.s.fam, where, here: p.s.p === this.current.spec.id && p.s.mode !== "fly", flying: p.s.mode === "fly" || p.s.p === 0, planetId: p.s.p };
+      return { id: p.id, friendId: p.s.f, family: p.s.fam, where, here: p.s.p === this.current.spec.id && p.s.mode !== "fly", flying: p.s.mode === "fly" || p.s.p === 0, planetId: p.s.p, look: [itemById(p.s.h ?? "")?.hat, itemById(p.s.a ?? "")?.icon].filter(Boolean).join(" ") };
     });
     return { status: this.net.status, enabled: this.onlineEnabled, players };
   }

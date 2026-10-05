@@ -413,3 +413,5 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
 .fp-unlock-card p { margin: 2px 0 6px; font: 500 12.5px/1.45 var(--body); color: var(--muted); }
 .fp-unlock-card .fp-cta { margin-top: 6px; min-width: 150px; }
 .fp-unlock-card .fp-tryon, .fp-co-card .fp-tryon { margin-top: 26px; }
+.fp-look { margin-left: 6px; font-style: normal; font-size: 14px; }
+.fp-slide-ico { color: var(--gold); }
