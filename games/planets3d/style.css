@@ -415,3 +415,25 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
 .fp-unlock-card .fp-tryon, .fp-co-card .fp-tryon { margin-top: 26px; }
 .fp-look { margin-left: 6px; font-style: normal; font-size: 14px; }
 .fp-slide-ico { color: var(--gold); }
+
+/* bundles */
+.fp-bundles { display: grid; gap: 6px; }
+.fp-bundle { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; background: linear-gradient(100deg, rgba(242,196,107,0.14), rgba(255,255,255,0.03) 60%); border: 1px solid rgba(242,196,107,0.3); }
+.fp-bundle.owned { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.1); }
+.fp-bundle-icons { flex: none; display: flex; }
+.fp-bundle-icons i { display: grid; place-items: center; width: 34px; height: 34px; margin-left: -8px; border-radius: 50%; font-style: normal; font-size: 18px; background: #23243a; box-shadow: 0 0 0 2px #1b1c2e, inset 0 0 0 1px rgba(242,196,107,0.35); }
+.fp-bundle-icons i:first-child { margin-left: 0; }
+.fp-bundle-txt { flex: 1; min-width: 0; }
+.fp-bundle-txt b { display: block; font: 800 13px/1.2 var(--display); color: var(--text); }
+.fp-bundle-txt small { display: block; font: 500 11px/1.35 var(--body); color: var(--muted); }
+.fp-buy s, .fp-co-price s { margin-left: 4px; font-weight: 600; opacity: 0.55; }
+.fp-co-price s { font-size: 13px; color: var(--muted); }
+.fp-save { color: var(--good) !important; }
+
+/* the checkout always fits: a little tighter, and it scrolls on very short screens */
+.fp-checkout { overflow-y: auto; }
+.fp-co-card { max-height: 100%; overflow-y: auto; gap: 4px; padding: 16px 18px 14px; scrollbar-width: none; }
+.fp-co-card .fp-tryon { width: 92px; height: 92px; margin-top: 20px; }
+.fp-co-card .fp-tryon img { width: 76px; height: 76px; }
+.fp-co-lines li { padding: 5px 2px; }
+.fp-co-price { margin: 4px 0 2px; }

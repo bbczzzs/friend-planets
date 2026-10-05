@@ -7,7 +7,7 @@ import type { ActivityHud } from "./src/activities";
 import { makeGalaxy } from "./src/galaxy";
 import { FAMILY_NAMES, RARITY, RARITY_COLOR, SPORTS, perkOf } from "./src/data";
 import { loadProgress, saveProgress } from "./src/progress";
-import { OWNER_CUT, SHOP, featured, itemById, type ItemKind, type ShopItem } from "./src/economy";
+import { BUNDLES, OWNER_CUT, SHOP, featured, offerFor, type ItemKind, type Offer, type ShopItem } from "./src/economy";
 import { loadPilot, type PilotSprite } from "./pilot";
 import { stillClips, fallbackSprite, spriteCanvas } from "./sprites";
 import { ValleyAudio } from "./audio";
@@ -26,14 +26,24 @@ type Phase = "loading" | "error" | "title" | "playing";
 type ShopTab = "featured" | "sell" | ItemKind;
 const SHOP_TABS: { id: ShopTab; label: string }[] = [{ id: "featured", label: "Featured" }, { id: "hat", label: "Hats" }, { id: "aura", label: "Auras" }, { id: "rocket", label: "Rockets" }, { id: "gear", label: "Upgrades" }, { id: "item", label: "Items" }, { id: "sell", label: "Sell" }];
 
+/** How an offer looks: your Friend trying it on (hat / aura), else its icon; rocket paint as swatches. */
+function OfferLook({ pilot, offer }: { pilot: PilotSprite | null; offer: Offer }) {
+  const paint = offer.pieces.find(l => l.colors)?.colors;
+  return <>
+    {pilot && offer.pieces.some(l => l.hat || l.aura) ? <TryOn pilot={pilot} looks={offer.pieces} /> : <span className="fp-co-ico">{offer.icon}</span>}
+    {paint && <div className="fp-paint" aria-hidden="true"><i style={{ background: paint[0] }} /><i style={{ background: paint[1] }} /></div>}
+  </>;
+}
+
 /** Your own Friend wearing a hat or aura from the shop, so you see it before you buy. */
-function TryOn({ pilot, item }: { pilot: PilotSprite; item: ShopItem }) {
+function TryOn({ pilot, looks }: { pilot: PilotSprite; looks: ShopItem[] }) {
+  const hat = looks.find(l => l.hat)?.hat, aura = looks.find(l => l.aura)?.aura;
   const rows = pilot.clips.idle.down[0], first = Math.max(0, rows.findIndex(line => line.includes("#")));
   const size = 88, pad = 10, headTop = pad + (first + 1) / 18 * size;
   const src = spriteCanvas(rows).toDataURL();
-  return <div className={`fp-tryon${item.aura ? " aura" : ""}`} style={item.aura ? { ["--aura" as string]: item.aura.color } : undefined}>
+  return <div className={`fp-tryon${aura ? " aura" : ""}`} style={aura ? { ["--aura" as string]: aura.color } : undefined}>
     <img src={src} width={size} height={size} alt="Your Friend wearing it" />
-    {item.hat && <span className="fp-tryon-hat" style={{ top: `${headTop + 4}px` }}>{item.hat}</span>}
+    {hat && <span className="fp-tryon-hat" style={{ top: `${headTop + 4}px` }}>{hat}</span>}
   </div>;
 }
 
@@ -302,12 +312,12 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
         </div>}
       </>}
 
-      {unlocked && pilot && (() => { const item = itemById(unlocked)!; return <div className="fp-unlock" onPointerDown={() => setUnlocked(null)} role="dialog" aria-label="New look unlocked">
+      {unlocked && (() => { const offer = offerFor(unlocked, []); if (!offer) return null; return <div className="fp-unlock" onPointerDown={() => setUnlocked(null)} role="dialog" aria-label="New look unlocked">
         <div className="fp-unlock-card">
-          <small>New look unlocked</small>
-          {item.hat || item.aura ? <TryOn pilot={pilot} item={item} /> : <span className="fp-co-ico">{item.icon}</span>}
-          <h2>{item.name}</h2>
-          <p>{item.kind === "rocket" ? "Your rocket has a fresh coat of paint." : "Everyone on your planet can see it."}</p>
+          <small>{offer.single ? "New look unlocked" : "Set unlocked"}</small>
+          <OfferLook pilot={pilot} offer={offer} />
+          <h2>{offer.name}</h2>
+          <p>{offer.looks.every(l => l.kind === "rocket") ? "Your rocket has a fresh coat of paint." : "You're wearing it now. Everyone on your planet can see it."}</p>
           <button type="button" className="fp-cta fp-gold" onClick={() => setUnlocked(null)}>Nice!</button>
         </div>
       </div>; })()}
@@ -373,6 +383,13 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
               {owned ? <button type="button" className="fp-owned" onClick={() => engine.current?.equip(i.id)}>{Object.values(hud.wallet.equip).includes(i.id) ? "Wearing" : "Wear"}</button>
                 : <button type="button" className="fp-buy rf" onClick={() => setCheckout(i.id)}><Price item={i} /></button>}
             </div>; })}</div>
+            <p className="fp-feat-head"><span>Complete sets</span><small>20% off what you don't own</small></p>
+            <div className="fp-bundles">{BUNDLES.map(bd => { const offer = offerFor(bd.id, hud.wallet.owned)!, done = offer.price === 0; return <div key={bd.id} className={`fp-bundle${done ? " owned" : ""}`}>
+              <span className="fp-bundle-icons">{bd.items.map(i => <i key={i}>{SHOP.find(x => x.id === i)?.icon}</i>)}</span>
+              <span className="fp-bundle-txt"><b>{bd.name}</b><small>{bd.text}</small></span>
+              {done ? <span className="fp-item-tag">Owned</span>
+                : <button type="button" className="fp-buy rf" onClick={() => setCheckout(bd.id)}><Coin /> {offer.price} <s>{offer.full}</s></button>}
+            </div>; })}</div>
             <p className="fp-sim">Premium looks are seen by everyone on your planet. Cosmetic only: nobody pays to win.</p>
           </div>; })()
           : shopTab === "sell" ? <>
@@ -398,14 +415,15 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
                 : <button type="button" className={`fp-buy${i.currency === "rf" ? " rf" : ""}`} disabled={short} onClick={() => i.currency === "rf" ? setCheckout(i.id) : engine.current?.buy(i.id)}><Price item={i} /></button>}
             </li>;
           })}</ul>}
-          {checkout && (() => { const item = itemById(checkout)!, owner = hud.wallet.owner, cut = Math.round(item.price * OWNER_CUT * 100) / 100; return <div className="fp-checkout" role="dialog" aria-modal="true" aria-label="Confirm purchase">
+          {checkout && (() => { const offer = offerFor(checkout, hud.wallet.owned); if (!offer) return null; const owner = hud.wallet.owner, cut = Math.round(offer.price * OWNER_CUT * 100) / 100; return <div className="fp-checkout" role="dialog" aria-modal="true" aria-label="Confirm purchase">
             <div className="fp-co-card">
-              {pilot && (item.hat || item.aura) ? <TryOn pilot={pilot} item={item} /> : <span className="fp-co-ico">{item.icon}</span>}
-              {item.colors && <div className="fp-paint" aria-hidden="true"><i style={{ background: item.colors[0] }} /><i style={{ background: item.colors[1] }} /></div>}
-              <h3>{item.name}</h3>
-              <p>{item.text}</p>
-              <div className="fp-co-price"><Coin /><b>{item.price}</b> RF</div>
+              <OfferLook pilot={pilot} offer={offer} />
+              <h3>{offer.name}</h3>
+              <p>{offer.text}</p>
+              <div className="fp-co-price"><Coin /><b>{offer.price}</b> RF{offer.full > offer.price && <s>{offer.full}</s>}</div>
               <ul className="fp-co-lines">
+                {!offer.single && <li><span>Includes</span><b>{offer.looks.map(l => l.icon).join(" ")}</b></li>}
+                {offer.full > offer.price && <li><span>You save</span><b className="fp-save">{offer.full - offer.price} RF</b></li>}
                 <li><span>Paid with</span><b>$RAREFRIENDS</b></li>
                 {owner !== null && <li><span>Supports Friend #{owner}'s owner</span><b>{cut} RF</b></li>}
                 <li><span>Yours to keep</span><b>Forever</b></li>
@@ -413,7 +431,7 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
               {hud.wallet.simulated && <p className="fp-co-sim">Preview: payments are simulated, no RF leaves your wallet.</p>}
               <div className="fp-co-btns">
                 <button type="button" className="fp-cta fp-ghost" disabled={paying} onClick={() => setCheckout(null)}>Cancel</button>
-                <button type="button" className="fp-cta fp-gold" disabled={paying} onClick={async () => { setPaying(true); try { if (await engine.current?.checkout(item.id)) setUnlocked(item.id); } finally { setPaying(false); setCheckout(null); } }}>{paying ? "Confirming…" : `Pay ${item.price} RF`}</button>
+                <button type="button" className="fp-cta fp-gold" disabled={paying} onClick={async () => { setPaying(true); try { if (await engine.current?.checkout(offer.id)) setUnlocked(offer.id); } finally { setPaying(false); setCheckout(null); } }}>{paying ? "Confirming…" : `Pay ${offer.price} RF`}</button>
               </div>
             </div>
           </div>; })()}

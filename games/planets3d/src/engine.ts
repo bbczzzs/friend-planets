@@ -10,7 +10,7 @@ import { BUGS, Extras, FAMILY_TREASURE, TREASURES, type Find } from "./extras";
 import { ROSTER } from "../sprites";
 import { Activity, Boxing, Fishing, Penalty, Tennis, type ActivityHud, type ActivityKind, type Reward } from "./activities";
 import { GROW_MS, plotsFor, stageOf, type Progress } from "./progress";
-import { SHOP, canBuy, claimDaily, goodsOf, grant, has, itemById, sell, splitFor, stash, useItem, walletOf, type Order, type ShopItem } from "./economy";
+import { SHOP, canBuy, claimDaily, goodsOf, grant, has, itemById, offerFor, sell, splitFor, stash, useItem, walletOf, type Offer, type Order, type ShopItem } from "./economy";
 import { payments } from "./payments";
 import { Aura } from "./aura";
 import { countTask, dailyTasks, type TaskEvent, type TaskView } from "./tasks";
@@ -1331,30 +1331,34 @@ export class Engine {
     grant(this.progress, r.item);
     this.gotItem(r.item, null);
   }
-  /** The order an RF purchase would make here (for the checkout screen). */
+  /** The order an RF purchase (one item or a bundle) would make here. */
   orderFor(id: string): Order | null {
-    const item = itemById(id); if (!item || item.currency !== "rf") return null;
+    const offer = offerFor(id, walletOf(this.progress).owned); if (!offer || offer.price <= 0) return null;
     const owner = this.current.spec.home ? null : this.current.spec.id;
-    return { id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`, item: id, price: item.price, buyer: String(this.friendId), planetOwner: owner, split: splitFor(item.price, owner), at: Date.now() };
+    return { id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`, item: id, price: offer.price, buyer: String(this.friendId), planetOwner: owner, split: splitFor(offer.price, owner), at: Date.now() };
   }
-  /** Pays for an RF item through payments.ts; the item is handed over only when that succeeds. */
+  /** Pays for an RF item or bundle through payments.ts; the looks are handed over only when that succeeds. */
   async checkout(id: string): Promise<boolean> {
-    const r = canBuy(this.progress, id), order = this.orderFor(id);
-    if (!r.ok || !order) { this.host.onToast(r.ok ? "That isn't sold for RF." : r.why, "bad"); return false; }
+    const offer = offerFor(id, walletOf(this.progress).owned), order = this.orderFor(id);
+    if (offer?.single) { const r = canBuy(this.progress, id); if (!r.ok) { this.host.onToast(r.why, "bad"); return false; } }
+    if (!offer || !order) { this.host.onToast(offer ? "You already own all of that." : "That isn't sold for RF.", "bad"); return false; }
     const paid = await payments.purchase(order);
     if (!this.running) return false;
     if (!paid.ok) { this.host.onToast(paid.why, "bad"); this.audio?.miss(); return false; }
     order.tx = paid.tx;
     const w = walletOf(this.progress); w.orders = [order, ...w.orders].slice(0, 50);
-    grant(this.progress, r.item);
-    this.gotItem(r.item, order);
+    for (const look of offer.looks) grant(this.progress, look);
+    // A set is worn whole, including pieces you already had.
+    for (const piece of offer.pieces) if (piece.kind === "hat" || piece.kind === "aura" || piece.kind === "rocket") w.equip[piece.kind] = piece.id;
+    this.gotItem(offer, order);
     return true;
   }
-  private gotItem(item: ShopItem, order: Order | null) {
+  private gotItem(item: ShopItem | Offer, order: Order | null) {
+    const looks = "pieces" in item ? item.pieces : [item];
     const owner = order?.planetOwner ? ` · ${order.split.planetOwner} RF to Friend #${order.planetOwner}'s owner` : "";
     this.host.onToast(`${item.icon} ${item.name} is yours!${owner}`, "good");
-    if (item.currency === "rf") { this.audio?.fanfare(); this.celebrate(item.hat ?? item.icon); } else this.audio?.pickup();
-    if (item.kind === "rocket" || item.kind === "hat" || item.kind === "aura") this.applyLook(item.kind);
+    if (order) { this.audio?.fanfare(); this.celebrate(looks[0]?.hat ?? item.icon); } else this.audio?.pickup();
+    for (const look of looks) if (look.kind === "rocket" || look.kind === "hat" || look.kind === "aura") this.applyLook(look.kind);
     this.host.onProgress(this.progress); this.emitHud();
   }
   equip(id: string) {

@@ -197,3 +197,22 @@ export function claimDaily(p: Progress, now = new Date()): number {
   w.daily = today; p.stars += DAILY_STARS;
   return DAILY_STARS;
 }
+
+/** Bundles: a complete look, 20% off the pieces you don't own yet (so owning one piece never costs you). */
+export interface Bundle { id: string; name: string; icon: string; text: string; items: string[]; discount: number }
+export const BUNDLES: Bundle[] = [
+  { id: "bundle:royal", name: "Royal set", icon: "👑", text: "Crown, Golden aura and a Solid gold rocket", items: ["hat:crown", "aura:golden", "rocket:gold"], discount: 0.2 },
+  { id: "bundle:night", name: "Night sky set", icon: "🌙", text: "Top hat, Starlight aura and Midnight paint", items: ["hat:top", "aura:starlight", "rocket:midnight"], discount: 0.2 },
+  { id: "bundle:party", name: "Party set", icon: "🎧", text: "DJ phones, Ember aura and Mint paint", items: ["hat:phones", "aura:ember", "rocket:mint"], discount: 0.2 },
+];
+
+/** What a checkout sells: one RF item, or a bundle priced for what you already own. */
+export interface Offer { id: string; name: string; icon: string; text: string; price: number; full: number; looks: ShopItem[]; pieces: ShopItem[]; single: ShopItem | null } // looks: what you'd get; pieces: the whole set
+export function offerFor(id: string, owned: string[]): Offer | null {
+  const item = itemById(id);
+  if (item) return item.currency === "rf" ? { id, name: item.name, icon: item.icon, text: item.text, price: item.price, full: item.price, looks: [item], pieces: [item], single: item } : null;
+  const b = BUNDLES.find(x => x.id === id); if (!b) return null;
+  const pieces = b.items.map(i => itemById(i)!), missing = pieces.filter(i => !owned.includes(i.id));
+  const full = missing.reduce((n, i) => n + i.price, 0);
+  return { id, name: b.name, icon: b.icon, text: b.text, price: Math.round(full * (1 - b.discount)), full, looks: missing.length ? missing : pieces, pieces, single: null };
+}
