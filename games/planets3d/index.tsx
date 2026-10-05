@@ -111,6 +111,17 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
   const [emotes, setEmotes] = useState(false);
   const [unlocked, setUnlocked] = useState<string | null>(null);
   const [levelUp, setLevelUp] = useState<LevelUp | null>(null);
+  // Stars you earn float up from the Stars counter instead of filling the screen with messages.
+  const [pops, setPops] = useState<{ id: number; n: number }[]>([]);
+  const lastStars = useRef<number | null>(null), popId = useRef(0);
+  useEffect(() => {
+    if (!hud) return;
+    const before = lastStars.current; lastStars.current = hud.stars;
+    if (before === null || hud.stars <= before) return;
+    const id = ++popId.current, n = hud.stars - before;
+    setPops(list => [...list.slice(-2), { id, n }]);
+    window.setTimeout(() => setPops(list => list.filter(p => p.id !== id)), 1400);
+  }, [hud?.stars]);
   const nudged = useRef(new Set<string>());
 
   // A one-time tip the first time your Stars cover something new in the shop.
@@ -229,7 +240,10 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
               <span>{hud.level.title}</span>
               {hud.pass.claimable > 0 && <small className="fp-badge-dot">{hud.pass.claimable}</small>}
             </button>
-            <button type="button" className="fp-pill fp-rf" onClick={() => { setShopTab("featured"); setPanel("shop"); }} aria-label={`${hud.stars} Stars. Open the Shop`} title="Stars: earned by playing. Tap for the shop."><span className="fp-star">★</span><b>{hud.stars}</b><small>Shop</small></button>
+            <span className="fp-rf-wrap">
+              <button type="button" className="fp-pill fp-rf" onClick={() => { setShopTab("featured"); setPanel("shop"); }} aria-label={`${hud.stars} Stars. Open the Shop`} title="Stars: earned by playing. Tap for the shop."><span className="fp-star">★</span><b>{hud.stars}</b><small>Shop</small></button>
+              {pops.map(p => <em key={p.id} className="fp-starpop" aria-hidden="true">+{p.n}</em>)}
+            </span>
             {act ? <button type="button" className="fp-pill fp-leave" onClick={() => engine.current?.endActivity()}><kbd>Esc</kbd> Leave</button>
               : <div className="fp-bar-r" role="toolbar" aria-label="Menu">
                 <button type="button" className="fp-icon" onClick={() => setPanel("book")} aria-label="Collection" title="Collection"><Icon name="book" />{fishCaught > 0 && <small>{fishCaught}</small>}</button>
