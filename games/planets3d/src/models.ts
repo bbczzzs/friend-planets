@@ -14,6 +14,30 @@ glowMaterial.color.setScalar(1.7);
 const tmpColor = new THREE.Color();
 const tmpMatrix = new THREE.Matrix4();
 const tmpEuler = new THREE.Euler();
+const tmpQuat = new THREE.Quaternion(), tmpPos = new THREE.Vector3(), tmpScale = new THREE.Vector3();
+
+/**
+ * Unit shapes built once and copied (copying is far cheaper than rebuilding a
+ * shape for each of the thousands of flowers and leaves on a planet). Size them
+ * with sx / sy / sz.
+ */
+const shared = new Map<string, THREE.BufferGeometry>();
+function sharedShape(key: string, make: () => THREE.BufferGeometry) {
+  let g = shared.get(key);
+  if (!g) {
+    const built = make();
+    g = built.index ? built.toNonIndexed() : built;
+    if (g !== built) built.dispose();
+    g.deleteAttribute("uv"); g.userData.shared = true;
+    shared.set(key, g);
+  }
+  return g;
+}
+export const UNIT = {
+  box: () => sharedShape("box", () => new THREE.BoxGeometry(1, 1, 1)),
+  ico: (detail: number) => sharedShape("ico" + detail, () => new THREE.IcosahedronGeometry(1, detail)),
+  dodeca: (detail: number) => sharedShape("dodeca" + detail, () => new THREE.DodecahedronGeometry(1, detail)),
+};
 
 type BoxOptions = { rx?: number; ry?: number; rz?: number; sx?: number; sy?: number; sz?: number; smooth?: boolean };
 export class Blocks {
@@ -22,19 +46,26 @@ export class Blocks {
   /** Everything added until the next call is placed in this frame (e.g. standing on a planet). */
   at(frame: THREE.Matrix4 | null) { this.frame = frame; return this; }
   box(w: number, h: number, d: number, x: number, y: number, z: number, color: string, options: BoxOptions = {}) {
-    return this.add(new THREE.BoxGeometry(w, h, d), x, y, z, color, options);
+    return this.add(UNIT.box(), x, y, z, color, { ...options, sx: w * (options.sx ?? 1), sy: h * (options.sy ?? 1), sz: d * (options.sz ?? 1) });
   }
   add(geometry: THREE.BufferGeometry, x: number, y: number, z: number, color: string, options: BoxOptions = {}) {
-    const source = geometry.index ? geometry.toNonIndexed() : geometry;
-    if (source !== geometry) geometry.dispose();
-    if (options.sx || options.sy || options.sz) source.scale(options.sx ?? 1, options.sy ?? 1, options.sz ?? 1);
-    if (options.rx || options.ry || options.rz) source.applyMatrix4(tmpMatrix.makeRotationFromEuler(tmpEuler.set(options.rx ?? 0, options.ry ?? 0, options.rz ?? 0)));
-    source.translate(x, y, z);
-    if (this.frame) source.applyMatrix4(this.frame);
-    source.deleteAttribute("uv");
+    let source: THREE.BufferGeometry;
+    if (geometry.userData.shared) source = geometry.clone();
+    else {
+      source = geometry.index ? geometry.toNonIndexed() : geometry;
+      if (source !== geometry) geometry.dispose();
+      source.deleteAttribute("uv");
+    }
+    // Scale, then rotate, then move, then into the frame: one matrix, one pass over the vertices.
+    tmpScale.set(options.sx ?? 1, options.sy ?? 1, options.sz ?? 1);
+    tmpQuat.setFromEuler(tmpEuler.set(options.rx ?? 0, options.ry ?? 0, options.rz ?? 0));
+    tmpMatrix.compose(tmpPos.set(x, y, z), tmpQuat, tmpScale);
+    if (this.frame) tmpMatrix.premultiply(this.frame);
     // Smooth parts keep their rounded normals; everything else is faceted.
-    if (!options.smooth || !source.getAttribute("normal")) { source.deleteAttribute("normal"); source.computeVertexNormals(); }
-    else source.normalizeNormals();
+    const faceted = !options.smooth || !source.getAttribute("normal");
+    if (faceted) source.deleteAttribute("normal");
+    source.applyMatrix4(tmpMatrix);
+    if (faceted) source.computeVertexNormals();
     tmpColor.set(color);
     const count = source.getAttribute("position").count, colors = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) { colors[i * 3] = tmpColor.r; colors[i * 3 + 1] = tmpColor.g; colors[i * 3 + 2] = tmpColor.b; }

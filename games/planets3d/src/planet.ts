@@ -7,9 +7,8 @@
  * Everything is in planet-local coordinates; the group is only translated.
  */
 import * as THREE from "three";
-import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { Blocks, Label, glowMaterial, litMaterial } from "./models";
-import { TIME, grassField, inked, outline, particles, toon, waterMaterial } from "./look";
+import { Blocks, Label, UNIT, glowMaterial, litMaterial } from "./models";
+import { TIME, grassField, inked, outline, outlineHull, particles, smoothNormals, toon, waterMaterial, weldPositions } from "./look";
 import { mulberry32, TAU, type Sport, type Theme, type TreeKind } from "./data";
 
 export type StationKind = "pad" | "house" | "farm" | "pond" | "sport" | "sign";
@@ -179,34 +178,60 @@ export class Planet {
   private layout!: { plaza: THREE.Vector3; padN: THREE.Vector3; houseFrame: THREE.Matrix4; farmFrame: THREE.Matrix4 | null; dockFrame: THREE.Matrix4 | null; pondN: THREE.Vector3 | null; signN: THREE.Vector3 };
   private full: THREE.Object3D[] = [];
   private lod!: THREE.Mesh;
+  /** Full detail is finished (until then the far-away stand-in shows). */
   built = false;
+  private job: Generator<void, void> | null = null;
 
-  /** Full detail, built the first time you come close (a second or two of work). */
-  ensureDetail() {
-    if (this.built) return;
-    this.built = true;
+  /** Full detail, all at once (landing needs it now). */
+  ensureDetail() { while (!this.buildSome(Infinity)); }
+  /**
+   * Builds full detail a slice at a time so flying past stays smooth: works for
+   * about `budgetMs` and returns true once the planet is finished.
+   */
+  buildSome(budgetMs: number) {
+    if (this.built) return true;
+    this.job ??= this.detailJob();
+    const end = performance.now() + budgetMs;
+    do { if (this.job.next().done) { this.job = null; return true; } } while (performance.now() < end);
+    return false;
+  }
+  private *detailJob(): Generator<void, void> {
     const { spec } = this, { R, theme } = spec, L = this.layout;
     const before = new Set(this.group.children);
-    this.group.add(this.buildGround());
+    // Pieces stay hidden until the planet is finished, then the near/far switch shows them.
+    const hideNew = () => { for (const o of this.group.children) if (!before.has(o)) o.visible = false; };
+    const ground = yield* this.groundJob();
+    this.group.add(ground); hideNew(); yield;
     const lit = new Blocks(), glow = new Blocks();
     this.buildPad(lit, glow, this.padFrame);
     this.buildHouse(lit, glow, L.houseFrame);
+    yield;
     if (L.farmFrame) this.buildFarm(lit, L.farmFrame);
     if (L.dockFrame && L.pondN) { this.buildDock(lit, L.dockFrame); this.buildPondDecor(lit, L.pondN); }
+    yield;
     if (this.arena) this.buildArena(lit, glow, this.arena.frame, this.arena.sport);
     this.buildPlaza(lit, glow, L.plaza, L.padN);
-    this.scatter(lit, glow);
+    yield;
+    yield* this.scatter(lit, glow);
     this.buildPathLamps(lit, glow);
-    const litMesh = inked(this.group, lit.mesh(litMaterial));
+    yield;
+    const litGeometry = lit.build(); yield;
+    const litMesh = new THREE.Mesh(litGeometry, litMaterial);
+    litMesh.castShadow = litMesh.receiveShadow = true;
+    const welded = weldPositions(litGeometry.getAttribute("position"), 1e-3); yield;
+    smoothNormals(welded); yield;
+    const litHull = outlineHull(litMesh, welded);
+    this.group.add(litMesh, litHull);
     const glowMesh = glow.mesh(glowMaterial);
     this.group.add(glowMesh);
     const glowHull = outline(glowMesh, 0.05);
     this.group.add(glowHull);
-    this.detail.push(this.group.children[this.group.children.indexOf(litMesh) + 1], glowHull);
-    this.buildFace();
-    this.buildGrass();
-    this.buildClouds();
-    this.buildParticles();
+    this.detail.push(litHull, glowHull);
+    hideNew(); yield;
+    this.buildFace(); hideNew(); yield;
+    this.buildGrass(); hideNew(); yield;
+    this.buildClouds(); hideNew(); yield;
+    this.buildParticles(); hideNew(); yield;
     // Sign with the planet's name next to the plaza.
     const sign = new Label(0.4);
     sign.set([{ text: spec.name, color: "#ffffff", size: 44 }, { text: spec.home ? "your planet" : theme.region, color: theme.accent, size: 26 }]);
@@ -216,6 +241,7 @@ export class Planet {
     inked(this.group, post.mesh());
     this.colliders.push({ p: L.signN.clone().multiplyScalar(R), r: 0.4 });
     this.full = this.group.children.filter(o => !before.has(o));
+    this.built = true;
     this.near = !this.near; // force the near/far switch to run on the next update
   }
 
@@ -274,20 +300,26 @@ export class Planet {
   }
   walkable(n: THREE.Vector3) { return this.onDock(n) > 0 || this.height(n) > this.water + 0.25; }
 
-  private buildGround(detail = Math.round(this.spec.R * 1.25), hull = true) {
+  private buildGround(detail?: number, hull?: boolean) {
+    const job = this.groundJob(detail, hull);
+    for (;;) { const step = job.next(); if (step.done) return step.value; }
+  }
+  private *groundJob(detail = Math.round(this.spec.R * 1.25), hull = true): Generator<void, THREE.Mesh> {
     const { theme, R } = this.spec;
     const base = new THREE.IcosahedronGeometry(1, detail);
-    base.deleteAttribute("uv"); base.deleteAttribute("normal");
-    const geometry = mergeVertices(base, 1e-5);
+    const geometry = weldPositions(base.getAttribute("position"), 1e-4);
     base.dispose();
+    yield;
     const pos = geometry.getAttribute("position") as THREE.BufferAttribute;
     const n = new THREE.Vector3();
     for (let i = 0; i < pos.count; i++) {
       n.fromBufferAttribute(pos, i).normalize();
       n.multiplyScalar(this.height(n));
       pos.setXYZ(i, n.x, n.y, n.z);
+      if (i % 2000 === 1999) yield;
     }
     geometry.computeVertexNormals();
+    yield;
     const normals = geometry.getAttribute("normal") as THREE.BufferAttribute;
     const colors = new Float32Array(pos.count * 3), c = new THREE.Color(), tmp = new THREE.Color(), dir = new THREE.Vector3(), nrm = new THREE.Vector3();
     const r = mulberry32(this.spec.seed ^ 0xc0102);
@@ -316,11 +348,12 @@ export class Planet {
       const cell = this.cellAt(dir);
       if (cell?.kind === 1) c.set("#23202e"); else if (cell?.kind === 2) c.set("#efe7d6");
       colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+      if (i % 2000 === 1999) yield;
     }
     geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
     const mesh = new THREE.Mesh(geometry, litMaterial);
     mesh.receiveShadow = true;
-    if (hull) { const h = outline(mesh, 0.09); this.detail.push(h); this.group.add(h); }
+    if (hull) { yield; const h = outline(mesh, 0.09); this.detail.push(h); this.group.add(h); }
     return mesh;
   }
   private pathDistance(n: THREE.Vector3) {
@@ -523,49 +556,54 @@ export class Planet {
   }
 
   /** Trees, rocks, flowers and glowing things all over the planet. */
-  private scatter(lit: Blocks, glow: Blocks) {
+  private *scatter(lit: Blocks, glow: Blocks): Generator<void, void> {
     const { theme, R } = this.spec, r = this.rand;
     const area = R * R;
-    const place = (count: number, radius: number, draw: (frame: THREE.Matrix4, size: number, n: THREE.Vector3) => void, opts: { solid?: boolean; night?: boolean } = {}) => {
+    const self = this;
+    function* place(count: number, radius: number, draw: (frame: THREE.Matrix4, size: number, n: THREE.Vector3) => void, opts: { solid?: boolean; night?: boolean } = {}): Generator<void, void> {
       for (let placed = 0, tries = 0; placed < count && tries < count * 15; tries++) {
+        if (tries % 4 === 3) yield;
         const n = randomDir(r);
         if (opts.night && n.dot(SUN_DIR) > 0.1) continue;
-        const h = this.height(n);
-        if (h < this.water + 0.45) continue;
-        if (this.paths.some(path => nearPath(n, path, (1.3 + radius) / R))) continue;
-        if (this.blocked(n, radius)) continue;
+        const h = self.height(n);
+        if (h < self.water + 0.45) continue;
+        if (self.paths.some(path => nearPath(n, path, (1.3 + radius) / R))) continue;
+        if (self.blocked(n, radius)) continue;
         const size = 0.8 + r() * 0.5;
         const frame = surfaceFrame(n, null, h - 0.05, r() * TAU);
         draw(frame, size, n);
-        if (opts.solid !== false) this.colliders.push({ p: n.clone().multiplyScalar(h), r: radius * size });
+        if (opts.solid !== false) self.colliders.push({ p: n.clone().multiplyScalar(h), r: radius * size });
         placed++;
       }
-    };
+    }
     const treeKinds: TreeKind[] = theme.extra ? [theme.tree, theme.tree, theme.extra] : [theme.tree];
-    place(Math.round(area * 0.075), 0.7, (frame, s) => this.tree(lit, glow, frame, s, treeKinds[Math.floor(r() * treeKinds.length)]));
-    place(Math.round(area * 0.03), 0.8, (frame, s) => {
-      lit.at(frame).add(new THREE.DodecahedronGeometry(0.85 * s, 1), 0, 0.3 * s, 0, theme.rock, { sy: 0.7, ry: r() * 3, smooth: true })
-        .add(new THREE.DodecahedronGeometry(0.45 * s, 1), 0.75 * s, 0.15, 0.3, theme.rockDark, { sy: 0.75, smooth: true });
+    yield* place(Math.round(area * 0.075), 0.7, (frame, s) => this.tree(lit, glow, frame, s, treeKinds[Math.floor(r() * treeKinds.length)]));
+    yield* place(Math.round(area * 0.03), 0.8, (frame, s) => {
+      const a = 0.85 * s, b = 0.45 * s;
+      lit.at(frame).add(UNIT.dodeca(1), 0, 0.3 * s, 0, theme.rock, { sx: a, sy: a * 0.7, sz: a, ry: r() * 3, smooth: true })
+        .add(UNIT.dodeca(1), 0.75 * s, 0.15, 0.3, theme.rockDark, { sx: b, sy: b * 0.75, sz: b, smooth: true });
     });
     // Bushes: little clusters of round leaves.
-    place(Math.round(area * 0.05), 0.6, (frame, s) => {
+    yield* place(Math.round(area * 0.05), 0.6, (frame, s) => {
       const leaf = theme.leaf[Math.floor(r() * theme.leaf.length)];
-      lit.at(frame).add(new THREE.IcosahedronGeometry(0.62 * s, 2), 0, 0.4 * s, 0, leaf, { smooth: true })
-        .add(new THREE.IcosahedronGeometry(0.46 * s, 2), 0.55 * s, 0.3 * s, 0.1, shade(leaf, 1.08), { smooth: true })
-        .add(new THREE.IcosahedronGeometry(0.4 * s, 2), -0.45 * s, 0.28 * s, -0.2, shade(leaf, 0.94), { smooth: true });
-      if (r() < 0.5) lit.add(new THREE.IcosahedronGeometry(0.12, 1), 0.2, 0.85 * s, 0.35, theme.flowers[0], { smooth: true });
+      const ball = (k: number) => ({ sx: k, sy: k, sz: k, smooth: true });
+      lit.at(frame).add(UNIT.ico(2), 0, 0.4 * s, 0, leaf, ball(0.62 * s))
+        .add(UNIT.ico(2), 0.55 * s, 0.3 * s, 0.1, shade(leaf, 1.08), ball(0.46 * s))
+        .add(UNIT.ico(2), -0.45 * s, 0.28 * s, -0.2, shade(leaf, 0.94), ball(0.4 * s));
+      if (r() < 0.5) lit.add(UNIT.ico(1), 0.2, 0.85 * s, 0.35, theme.flowers[0], ball(0.12));
     });
-    place(Math.round(area * 0.22), 0.35, (frame, s) => {
+    yield* place(Math.round(area * 0.22), 0.35, (frame, s) => {
       lit.at(frame);
       const color = theme.flowers[Math.floor(r() * theme.flowers.length)];
       for (let i = 0; i < 3; i++) {
         const x = (r() - 0.5) * 1.1, z = (r() - 0.5) * 1.1, h = 0.35 + r() * 0.3;
-        lit.box(0.05, h, 0.05, x, h / 2, z, theme.leaf[0]).add(new THREE.IcosahedronGeometry(0.15 * s, 1), x, h + 0.05, z, color, { sy: 0.7, smooth: true })
-          .add(new THREE.IcosahedronGeometry(0.06, 0), x, h + 0.14, z, "#fff4c2", { smooth: true });
+        const k = 0.15 * s;
+        lit.box(0.05, h, 0.05, x, h / 2, z, theme.leaf[0]).add(UNIT.ico(1), x, h + 0.05, z, color, { sx: k, sy: k * 0.7, sz: k, smooth: true })
+          .add(UNIT.ico(0), x, h + 0.14, z, "#fff4c2", { sx: 0.06, sy: 0.06, sz: 0.06, smooth: true });
       }
     }, { solid: false });
     // The night side glows: crystals, glowcaps or lanterns in the planet's colour.
-    place(Math.round(area * 0.03), 0.6, (frame, s) => this.nightGlow(lit, glow, frame, s), { night: true });
+    yield* place(Math.round(area * 0.03), 0.6, (frame, s) => this.nightGlow(lit, glow, frame, s), { night: true });
     lit.at(null); glow.at(null);
   }
 

@@ -5,7 +5,6 @@
  * (fireflies, sparkles, sparks, smoke, dust). One shared clock drives them all.
  */
 import * as THREE from "three";
-import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 export const TIME = { value: 0 };
 export const INK = "#2a2238";
@@ -45,13 +44,72 @@ const outlineMaterial = new THREE.ShaderMaterial({
   }`,
   side: THREE.BackSide,
 });
+/**
+ * Welds a position-only triangle soup into an indexed mesh (vertices closer than
+ * `tolerance` become one). Same result as three's mergeVertices, but with a
+ * typed-array hash table instead of string keys: many times faster on
+ * whole-planet meshes.
+ */
+export function weldPositions(source: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, tolerance = 1e-3) {
+  const count = source.count, inv = 1 / tolerance;
+  let size = 1; while (size < count * 2) size <<= 1;
+  const mask = size - 1, table = new Int32Array(size).fill(-1);
+  const keys = new Int32Array(count * 3), out = new Float32Array(count * 3), index = new Uint32Array(count);
+  let unique = 0;
+  for (let i = 0; i < count; i++) {
+    const x = source.getX(i), y = source.getY(i), z = source.getZ(i);
+    const qx = Math.round(x * inv), qy = Math.round(y * inv), qz = Math.round(z * inv);
+    let h = (Math.imul(qx, 73856093) ^ Math.imul(qy, 19349663) ^ Math.imul(qz, 83492791)) & mask;
+    for (;;) {
+      const j = table[h];
+      if (j < 0) {
+        table[h] = unique; keys[unique * 3] = qx; keys[unique * 3 + 1] = qy; keys[unique * 3 + 2] = qz;
+        out[unique * 3] = x; out[unique * 3 + 1] = y; out[unique * 3 + 2] = z;
+        index[i] = unique++;
+        break;
+      }
+      if (keys[j * 3] === qx && keys[j * 3 + 1] === qy && keys[j * 3 + 2] === qz) { index[i] = j; break; }
+      h = (h + 1) & mask;
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(out.slice(0, unique * 3), 3));
+  g.setIndex(new THREE.BufferAttribute(index, 1));
+  return g;
+}
+/**
+ * Area-weighted smooth normals for a welded mesh: the same result as
+ * computeVertexNormals, read straight from the typed arrays (several times
+ * faster in a busy page, where the generic version is slowed by every other
+ * mesh it has seen).
+ */
+export function smoothNormals(g: THREE.BufferGeometry) {
+  const p = (g.getAttribute("position") as THREE.BufferAttribute).array as Float32Array, idx = g.index!.array as Uint32Array;
+  const n = new Float32Array(p.length);
+  for (let t = 0; t < idx.length; t += 3) {
+    const a = idx[t] * 3, b = idx[t + 1] * 3, c = idx[t + 2] * 3;
+    // (C - B) x (A - B), like three.
+    const cbx = p[c] - p[b], cby = p[c + 1] - p[b + 1], cbz = p[c + 2] - p[b + 2];
+    const abx = p[a] - p[b], aby = p[a + 1] - p[b + 1], abz = p[a + 2] - p[b + 2];
+    const nx = cby * abz - cbz * aby, ny = cbz * abx - cbx * abz, nz = cbx * aby - cby * abx;
+    n[a] += nx; n[a + 1] += ny; n[a + 2] += nz;
+    n[b] += nx; n[b + 1] += ny; n[b + 2] += nz;
+    n[c] += nx; n[c + 1] += ny; n[c + 2] += nz;
+  }
+  for (let i = 0; i < n.length; i += 3) {
+    const len = Math.hypot(n[i], n[i + 1], n[i + 2]) || 1;
+    n[i] /= len; n[i + 1] /= len; n[i + 2] /= len;
+  }
+  g.setAttribute("normal", new THREE.BufferAttribute(n, 3));
+}
 /** A hull that draws the mesh's silhouette and creases in ink. */
 export function outline(mesh: THREE.Mesh, maxWidth?: number) {
-  const g = new THREE.BufferGeometry();
-  g.setAttribute("position", (mesh.geometry.getAttribute("position") as THREE.BufferAttribute).clone());
-  const merged = mergeVertices(g, 1e-3);
-  merged.computeVertexNormals();
-  g.dispose();
+  const merged = weldPositions(mesh.geometry.getAttribute("position"), 1e-3);
+  smoothNormals(merged);
+  return outlineHull(mesh, merged, maxWidth);
+}
+/** The hull mesh for an already welded, smooth-normalled copy of a mesh (lets big meshes be outlined in two steps). */
+export function outlineHull(mesh: THREE.Mesh, merged: THREE.BufferGeometry, maxWidth?: number) {
   const material = maxWidth === undefined ? outlineMaterial : outlineMaterial.clone();
   if (maxWidth !== undefined) (material as THREE.ShaderMaterial).uniforms.uMax.value = maxWidth;
   const hull = new THREE.Mesh(merged, material);

@@ -551,6 +551,8 @@ export class Engine {
   // ---------------------------------------------------------------- loop
   // Auto quality: if frames are slow, drop bloom, then shadows, then resolution.
   private quality = 3;
+  private cheapShadows = false;
+  private shadowFrame = 0;
   private frameMs = 16;
   private qualityAt = 4;
   lockQuality = false;
@@ -564,7 +566,13 @@ export class Engine {
   setQuality(q: number) {
     this.quality = q;
     if (q < 3) this.composer = null;
-    if (q < 2 && this.renderer.shadowMap.enabled) { this.renderer.shadowMap.enabled = false; this.sun.castShadow = false; this.scene.traverse(o => { const m = (o as THREE.Mesh).material as THREE.Material | undefined; if (m) m.needsUpdate = true; }); }
+    // Turning shadows off would recompile every shader at once (a long freeze, worst on Windows),
+    // so instead the shadow map gets smaller and is redrawn every third frame.
+    if (q < 2 && this.renderer.shadowMap.enabled && !this.cheapShadows) {
+      this.cheapShadows = true;
+      this.sun.shadow.mapSize.set(1024, 1024); this.sun.shadow.map?.dispose(); this.sun.shadow.map = null;
+      this.renderer.shadowMap.autoUpdate = false; this.renderer.shadowMap.needsUpdate = true;
+    }
     if (q < 1) { this.renderer.setPixelRatio(1); this.resize(); }
   }
   /** Trailer capture (webdriver only): the loop pauses and each captureStep() renders one fixed-length frame. */
@@ -595,6 +603,7 @@ export class Engine {
     else if (this.mode === "intro") this.updateIntro(dt);
     else if (this.mode === "race") this.updateRace(dt);
     if (this.mode === "walk" || this.mode === "race") this.extras?.update(dt, this.time);
+    this.prebuild();
     if (this.time >= this.plotsAt) { this.plotsAt = this.time + 0.5; this.refreshCrops(); }
     if (this.mode === "walk" || this.mode === "play") this.updateHosts(dt);
     if (this.time >= this.questAt && this.mode === "walk") { this.questAt = this.time + 1; this.checkQuests(); }
@@ -604,6 +613,24 @@ export class Engine {
     if (this.time >= this.netAt) { this.netAt = this.time + 0.15; this.sendState(); }
     this.input.endFrame();
     if (this.time >= this.hudAt) { this.hudAt = this.time + 0.12; this.emitHud(); }
+  }
+
+  /**
+   * Planets are built a few milliseconds per frame before you reach them, so
+   * flying never freezes: your autopilot target first, then the nearest. On a
+   * planet, the closest neighbours get ready in the background.
+   */
+  private prebuild() {
+    const flying = this.mode === "launch" || this.mode === "fly";
+    const from = flying ? this.ship.p : this.current.group.position;
+    let best: Planet | null = null, bestD = Infinity;
+    for (const p of this.planets) {
+      if (p.built) continue;
+      const d = flying && this.target === p.spec.index ? 0 : p.group.position.distanceTo(from) - p.R;
+      if (d < bestD) { bestD = d; best = p; }
+    }
+    if (!best || (!flying && bestD > 650)) return;
+    best.buildSome(flying ? (bestD < 300 ? 10 : 6) : 3);
   }
 
   // ---------------------------------------------------------------- walking
@@ -935,8 +962,6 @@ export class Engine {
     this.rocket.setThrust(0.35 + s.throttle * 0.65, this.time);
     this.placeRocket();
     if (this.input.take("c")) this.view = this.view === "cockpit" ? "chase" : "cockpit";
-    // Build the full detail of a planet you are approaching (one per frame).
-    for (const p of this.planets) if (!p.built && s.p.distanceTo(p.group.position) < p.R + 240) { p.ensureDetail(); break; }
     const near = this.nearPlanet();
     if (this.leftPlanet && s.p.distanceTo(this.leftPlanet.group.position) > this.leftPlanet.R + 140) this.leftPlanet = null;
     if (near && (this.input.take("e") || this.input.take("enter") || (this.target === near.spec.index && s.p.distanceTo(near.group.position) < near.R + 70))) this.startLanding(near);
@@ -1234,6 +1259,7 @@ export class Engine {
     // No shadows on the night side (the planet itself would be in the way).
     const upHere = tmpB.copy(focus).sub(skyPlanet.group.position).normalize();
     this.sun.shadow.intensity = THREE.MathUtils.smoothstep(upHere.dot(SUN_DIR), -0.05, 0.25);
+    if (this.cheapShadows && ++this.shadowFrame % 3 === 0) this.renderer.shadowMap.needsUpdate = true;
     this.renderer.clear();
     if (this.composer) this.composer.render(dt);
     else this.renderer.render(this.scene, this.camera);
