@@ -120,7 +120,7 @@ export class Planet {
     const houseN = at(9 / R, 2.25);
     this.flats.push({ d: houseN, ang: 4 / R });
     const farmN = spec.farm ? at(9.5 / R, 3.95) : null;
-    if (farmN) this.flats.push({ d: farmN, ang: 3.8 / R });
+    if (farmN) this.flats.push({ d: farmN, ang: 5 / R });
     const pondN = spec.fishing ? at(15.5 / R, 1.1) : null;
     if (pondN) this.dips.push({ d: pondN, ang: 7.2 / R, depth: 3.3 });
     const arenaN = spec.sport ? at(13 / R, 5.1) : null;
@@ -256,8 +256,15 @@ export class Planet {
     for (const w of this.waves) h += w.a * Math.sin(w.f * (n.x * w.d.x + n.y * w.d.y + n.z * w.d.z) * 3 + w.p);
     for (const b of this.bumps) { const t = smooth(b.ang, 0, angleBetween(n, b.d)); h += b.h * t * t; }
     for (const d of this.dips) { const a = angleBetween(n, d.d); if (a < d.ang) h -= d.depth * smooth(d.ang, d.ang * 0.45, a) + (h - this.R) * smooth(d.ang, d.ang * 0.6, a); }
-    // Flat spots are true planes touching radius R, so buildings and courts sit flush.
-    for (const f of this.flats) { const a = angleBetween(n, f.d); if (a < f.ang * 1.8) h += (this.R / Math.cos(a) - h) * smooth(f.ang * 1.8, f.ang, a); }
+    // Flat spots are true planes touching radius R, so buildings and courts sit flush. Weakest
+    // first, so wherever a spot is fully flat its own plane wins (a big court's soft edge used
+    // to lift one side of the farm over its fence).
+    let pulls: { plane: number; w: number }[] | null = null;
+    for (const f of this.flats) {
+      const a = angleBetween(n, f.d);
+      if (a < f.ang * 1.8) (pulls ??= []).push({ plane: this.R / Math.cos(a), w: smooth(f.ang * 1.8, f.ang, a) });
+    }
+    if (pulls) { pulls.sort((p, q) => p.w - q.w); for (const p of pulls) h += (p.plane - h) * p.w; }
     const fa = angleBetween(n, this.faceDir);
     if (fa < this.faceA * 1.3) h += (this.R + 0.35 - h) * smooth(this.faceA * 1.3, this.faceA * 1.02, fa) * 0.9;
     return h;

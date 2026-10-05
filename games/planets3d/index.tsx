@@ -93,7 +93,7 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
     setTouch(window.matchMedia("(pointer: coarse)").matches);
     const fallback: PilotSprite = { clips: stillClips(fallbackSprite(Number(BigInt.asUintN(32, friendId)))), familyId: Number(friendId % 9n), fallback: true };
     const sprite = Promise.race([loadPilot(friendId), new Promise<PilotSprite>(res => window.setTimeout(() => res(fallback), 9000))]);
-    const fonts = Promise.race([document.fonts?.load("700 40px Silkscreen").catch(() => null), new Promise(res => window.setTimeout(res, 1500))]);
+    const fonts = Promise.race([Promise.all([document.fonts?.load("700 40px Silkscreen"), document.fonts?.load("800 40px Archivo")]).catch(() => null), new Promise(res => window.setTimeout(res, 1500))]);
     Promise.all([client.read(), sprite, fonts]).then(([, art]) => {
       if (!live) return;
       setPilot(art);

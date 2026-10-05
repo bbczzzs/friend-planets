@@ -102,25 +102,29 @@ export class Label {
     const key = JSON.stringify(lines) + box;
     if (key === this.key) return;
     this.key = key;
-    const ctx = this.canvas.getContext("2d")!, font = (size: number) => `700 ${size}px Silkscreen, "Sometype Mono", ui-monospace, monospace`;
-    const sizes = lines.map(line => line.size ?? 40);
+    const ctx = this.canvas.getContext("2d")!, font = (size: number) => `800 ${size}px Archivo, system-ui, sans-serif`;
+    // Archivo sits smaller in its em box than the old pixel font: draw a little larger to match.
+    const sizes = lines.map(line => (line.size ?? 40) * (box ? 1.35 : 1.15));
     let width = 8;
     lines.forEach((line, i) => { ctx.font = font(sizes[i]); width = Math.max(width, ctx.measureText(line.text).width + (box ? 44 : 28)); });
     const height = sizes.reduce((sum, size) => sum + size * 1.25, 0) + (box ? 26 : 10);
     this.canvas.width = Math.ceil(width); this.canvas.height = Math.ceil(height);
     ctx.clearRect(0, 0, width, height); ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineJoin = "round";
     if (box) {
-      ctx.fillStyle = "#111111"; ctx.fillRect(6, 6, width - 6, height - 6);
-      ctx.fillStyle = "#fbf8f0"; ctx.fillRect(0, 0, width - 6, height - 6);
-      ctx.strokeStyle = "#111111"; ctx.lineWidth = 4; ctx.strokeRect(2, 2, width - 10, height - 10);
+      // Speech bubble: a soft cream pill with a gentle shadow, like the HUD's chalk-white buttons.
+      ctx.save();
+      ctx.shadowColor = "rgba(6, 8, 20, 0.35)"; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
+      ctx.fillStyle = "rgba(247, 244, 236, 0.96)";
+      ctx.beginPath(); ctx.roundRect(4, 3, width - 14, height - 12, Math.min(26, (height - 12) / 2)); ctx.fill();
+      ctx.restore();
     }
     let y = 5;
     lines.forEach((line, i) => {
       ctx.font = font(sizes[i]); y += sizes[i] * 0.625;
-      if (box) { ctx.fillStyle = line.color ?? "#111111"; ctx.fillText(line.text, (width - 6) / 2, y - 2); }
+      if (box) { ctx.fillStyle = line.color === "#111111" || !line.color ? "#16171f" : line.color; ctx.fillText(line.text, (width - 6) / 2, y - 3); }
       else {
-        ctx.lineWidth = Math.max(6, sizes[i] * 0.24); ctx.strokeStyle = "#111111"; ctx.strokeText(line.text, width / 2, y);
-        ctx.fillStyle = line.color ?? "#ffffff"; ctx.fillText(line.text, width / 2, y);
+        ctx.lineWidth = Math.max(5, sizes[i] * 0.18); ctx.strokeStyle = "rgba(16, 17, 28, 0.88)"; ctx.strokeText(line.text, width / 2, y);
+        ctx.fillStyle = line.color ?? "#f7f4ec"; ctx.fillText(line.text, width / 2, y);
       }
       y += sizes[i] * 0.625;
     });

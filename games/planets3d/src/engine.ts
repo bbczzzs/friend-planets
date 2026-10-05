@@ -243,7 +243,7 @@ export class Engine {
     const chevron = new THREE.Shape();
     chevron.moveTo(0, 0.9); chevron.lineTo(0.75, 0); chevron.lineTo(0.38, 0); chevron.lineTo(0, 0.45); chevron.lineTo(-0.38, 0); chevron.lineTo(-0.75, 0); chevron.lineTo(0, 0.9);
     const arrowGeo = new THREE.ShapeGeometry(chevron); arrowGeo.rotateX(Math.PI / 2);
-    this.arrow = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color("#ccff00").multiplyScalar(1.2), side: THREE.DoubleSide, transparent: true, opacity: 0.95, depthWrite: false }));
+    this.arrow = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color("#f2c46b").multiplyScalar(1.25), side: THREE.DoubleSide, transparent: true, opacity: 0.95, depthWrite: false }));
     this.arrow.renderOrder = 4;
     this.arrow.visible = false; this.scene.add(this.arrow);
     // Planets you discovered before come back (their artwork is read from the chain again).
