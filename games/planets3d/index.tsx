@@ -95,6 +95,19 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
   const [shopTab, setShopTab] = useState<ShopTab>("featured");
   const [checkout, setCheckout] = useState<string | null>(null), [paying, setPaying] = useState(false);
   const [emotes, setEmotes] = useState(false);
+  const [unlocked, setUnlocked] = useState<string | null>(null);
+  const nudged = useRef(new Set<string>());
+
+  // A one-time tip the first time your Stars cover something new in the shop.
+  useEffect(() => {
+    if (!hud || phase !== "playing") return;
+    const next = SHOP.filter(i => i.currency === "star" && i.price > 0 && !hud.wallet.owned.includes(i.id) && i.kind !== "item" && i.price <= hud.stars && !nudged.current.has(i.id))
+      .sort((a, b) => b.price - a.price)[0];
+    if (!next) return;
+    for (const i of SHOP) if (i.currency === "star" && i.price <= hud.stars) nudged.current.add(i.id);
+    toast(`★ You can afford the ${next.name} (${next.price} ★). Open the Shop to get it.`, "good");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hud?.stars, phase]);
 
   const toast = useCallback((text: string, kind: ToastKind = "info") => {
     const id = ++toastId.current;
@@ -288,6 +301,15 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
         </div>}
       </>}
 
+      {unlocked && pilot && (() => { const item = itemById(unlocked)!; return <div className="fp-unlock" onPointerDown={() => setUnlocked(null)} role="dialog" aria-label="New look unlocked">
+        <div className="fp-unlock-card">
+          <small>New look unlocked</small>
+          {item.hat || item.aura ? <TryOn pilot={pilot} item={item} /> : <span className="fp-co-ico">{item.icon}</span>}
+          <h2>{item.name}</h2>
+          <p>{item.kind === "rocket" ? "Your rocket has a fresh coat of paint." : "Everyone on your planet can see it."}</p>
+          <button type="button" className="fp-cta fp-gold" onClick={() => setUnlocked(null)}>Nice!</button>
+        </div>
+      </div>; })()}
       <div className="fp-toasts" aria-live="polite">{toasts.map(t => <div key={t.id} className={`fp-toast ${t.kind}`}>{t.text}</div>)}</div>
 
       {phase === "loading" && <div className="fp-screen"><div className="fp-card"><div className="fp-spinner" /><p>Building your planet…</p></div></div>}
@@ -390,7 +412,7 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
               {hud.wallet.simulated && <p className="fp-co-sim">Preview: payments are simulated, no RF leaves your wallet.</p>}
               <div className="fp-co-btns">
                 <button type="button" className="fp-cta fp-ghost" disabled={paying} onClick={() => setCheckout(null)}>Cancel</button>
-                <button type="button" className="fp-cta fp-gold" disabled={paying} onClick={async () => { setPaying(true); try { await engine.current?.checkout(item.id); } finally { setPaying(false); setCheckout(null); } }}>{paying ? "Confirming…" : `Pay ${item.price} RF`}</button>
+                <button type="button" className="fp-cta fp-gold" disabled={paying} onClick={async () => { setPaying(true); try { if (await engine.current?.checkout(item.id)) setUnlocked(item.id); } finally { setPaying(false); setCheckout(null); } }}>{paying ? "Confirming…" : `Pay ${item.price} RF`}</button>
               </div>
             </div>
           </div>; })()}
