@@ -2,7 +2,7 @@
 
 **Every Rare Friend is a planet.** Your verified Generations Friend's own on-chain pixels are raised across its tiny 3D planet as a giant black-and-white portrait. Walk all the way around it, then board your rocket, fly from the cockpit, land on other Friends' planets and play: fishing, farming, treasure digging, butterflies, a hoverboard ring race, and a sport against each planet's Friend. Everyone online shares the galaxy.
 
-Built with **FriendSDK v0.1.4**, three.js 0.186 and Trystero (peer-to-peer). Rare Friends Vibeathon · **Character Spotlight**. No RF is spent, burned or moved anywhere: the only currency is ★ stars, earned by playing.
+Built with **FriendSDK v0.1.4**, three.js 0.186 and Trystero (peer-to-peer). Rare Friends Vibeathon · **Character Spotlight**. Play earns ★ Stars; premium looks cost RF through a checkout that is simulated in this preview (no RF moves).
 
 ## How your Friend is the main character
 
@@ -38,7 +38,9 @@ Built with **FriendSDK v0.1.4**, three.js 0.186 and Trystero (peer-to-peer). Rar
 
 ## Rewards and rules
 
-★ stars only, never RF: fish 5–20 ★ by rarity, harvest 3 ★, treasure and butterflies 4–16 ★, sports up to 10 ★ plus per-point stars and a planet trophy for a win (shown on the shelf by your house), ring race 6–20 ★, perfect landing 5 ★, each quest 10 ★. `game.json` holds the placeholder chance-game definition the SDK runtime requires; it is not used as a mechanic.
+**★ Stars (earned, never bought):** fish 5–20 ★ by rarity, harvest 3 ★, treasure and butterflies 4–16 ★, sports up to 10 ★ plus per-point stars and a planet trophy for a win (shown on the shelf by your house), ring race 6–20 ★, perfect landing 5 ★, each quest 10 ★, a daily visit 25 ★, three daily tasks 20–40 ★ each (+50 ★ for all three). The market buys what you collect: fish 10–110 ★, treasures 8–100 ★, butterflies 5–75 ★, crops 8 ★.
+
+**Shop:** Stars buy bait (a rare fish in the pond next trip), fertilizer (ripens your crops), permanent upgrades (rod, hoverboard, seeds) and starter hats and paint. **Premium** hats, auras and rocket paint cost 25–150 RF, fixed price, with a try-on in the checkout; other players see them; cosmetic only. RF is never paid out by the game: an RF purchase made on another Friend's planet sends 10% to that Friend's owner. In this preview payments are simulated (no wallet prompt, no RF moves); see [`ECONOMY.md`](../../ECONOMY.md) and `src/payments.ts`. No loot boxes or chance purchases. `game.json` holds the placeholder chance-game definition the SDK runtime requires; it is not used as a mechanic.
 
 ## Online: how it works
 
@@ -57,7 +59,7 @@ npx friendsdk check games/planets3d       # game validation
 node test-interaction.mjs 960             # interaction test in the SDK's automated runtime (also 390)
 ```
 
-Wallet: a browser wallet on **Robinhood mainnet (chain 4663)** holding a hardwired Rare Friends **Generations NFT (generation ≥ 1)**. This is the SDK's standard ownership gate. No signature, transaction or RF is ever requested.
+Wallet: a browser wallet on **Robinhood mainnet (chain 4663)** holding a hardwired Rare Friends **Generations NFT (generation ≥ 1)**. This is the SDK's standard ownership gate. No signature, transaction or RF is requested in this preview (RF purchases are simulated).
 
 ## Checks
 
