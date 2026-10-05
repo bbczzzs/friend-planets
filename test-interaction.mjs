@@ -60,7 +60,10 @@ await testGame("./games/planets3d", {
       if (!caught) await E(() => window.__fp3.action());
     }
     if (!caught) throw new Error("no fish caught");
-    await game.getByRole("button", { name: "Leave" }).last().click();
+    // The catch card slides in a moment later; leave from it once it has settled.
+    const leave = game.locator(".fp-result").getByRole("button", { name: "Leave" });
+    await leave.waitFor({ timeout: 10000 }); await page.waitForTimeout(400);
+    await leave.click();
 
     // Board the rocket and launch into space.
     await E(() => window.__fp3.testUse("pad"));
