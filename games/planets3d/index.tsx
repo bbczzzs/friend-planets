@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GameComponentProps } from "@rarefriends/friendsdk/runtime";
-import { Engine, type HudState, type LevelUp, type ToastKind } from "./src/engine";
+import { Engine, type ChatLine, type HudState, type LevelUp, type ToastKind } from "./src/engine";
 import { PASS_PRICE, passOffer, rewardLabel } from "./src/progression";
+import { PIXEL_HATS, friendThumb, rocketThumb } from "./src/pixelhats";
 import type { ActivityHud } from "./src/activities";
 import { makeGalaxy } from "./src/galaxy";
 import { FAMILY_NAMES, RARITY, RARITY_COLOR, SPORTS, perkOf } from "./src/data";
@@ -37,15 +38,21 @@ function OfferLook({ pilot, offer }: { pilot: PilotSprite | null; offer: Offer }
 }
 
 /** Your own Friend wearing a hat or aura from the shop, so you see it before you buy. */
-function TryOn({ pilot, looks }: { pilot: PilotSprite; looks: ShopItem[] }) {
-  const hat = looks.find(l => l.hat)?.hat, aura = looks.find(l => l.aura)?.aura;
-  const rows = pilot.clips.idle.down[0], first = Math.max(0, rows.findIndex(line => line.includes("#")));
-  const size = 88, pad = 10, headTop = pad + (first + 1) / 18 * size;
-  const src = spriteCanvas(rows).toDataURL();
-  return <div className={`fp-tryon${aura ? " aura" : ""}`} style={aura ? { ["--aura" as string]: aura.color } : undefined}>
-    <img src={src} width={size} height={size} alt="Your Friend wearing it" />
-    {hat && <span className="fp-tryon-hat" style={{ top: `${headTop + 4}px` }}>{hat}</span>}
+/** Your own Friend wearing a look (pixel hat drawn into the sprite, aura as a glow), so you see it before you buy. */
+function TryOn({ pilot, looks, size = 100 }: { pilot: PilotSprite; looks: ShopItem[]; size?: number }) {
+  const hat = looks.find(l => l.kind === "hat" && PIXEL_HATS[l.id])?.id, aura = looks.find(l => l.aura)?.aura;
+  return <div className={`fp-tryon${aura ? " aura" : ""}`} style={{ ["--aura" as string]: aura?.color ?? "transparent", width: size, height: size * 1.1 }}>
+    <img src={friendThumb(pilot.clips.idle.down[0], hat)} width={Math.round(size * 0.8)} height={Math.round(size * 0.8 * 25 / 20)} alt="Your Friend wearing it" />
   </div>;
+}
+/** Product art: your Friend in the hat or aura, a pixel rocket for paint, the item's icon otherwise. */
+function ItemArt({ item, pilot }: { item: ShopItem; pilot: PilotSprite | null }) {
+  if (pilot && (item.kind === "hat" || item.kind === "aura") && item.id !== "hat:none" && item.id !== "aura:none") {
+    const hat = item.kind === "hat" ? item.id : undefined;
+    return <span className={`fp-art${item.aura ? " aura" : ""}`} style={item.aura ? { ["--aura" as string]: item.aura.color } : undefined}><img src={friendThumb(pilot.clips.idle.down[0], hat)} alt="" /></span>;
+  }
+  if (item.colors) return <span className="fp-art"><img src={rocketThumb(item.colors)} alt="" /></span>;
+  return <span className="fp-art emoji">{item.icon}</span>;
 }
 
 function Portrait({ pilot, size = 96 }: { pilot: PilotSprite; size?: number }) {
@@ -111,6 +118,11 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
   const [emotes, setEmotes] = useState(false);
   const [unlocked, setUnlocked] = useState<string | null>(null);
   const [levelUp, setLevelUp] = useState<LevelUp | null>(null);
+  // Galaxy chat: everyone online sees it, wherever they are.
+  const [log, setLog] = useState<(ChatLine & { id: number })[]>([]), [unread, setUnread] = useState(0);
+  const chatId = useRef(0), chatOpen = useRef(false), logEnd = useRef<HTMLDivElement>(null);
+  useEffect(() => { chatOpen.current = chat !== null; if (chat !== null) setUnread(0); }, [chat]);
+  useEffect(() => { logEnd.current?.scrollIntoView({ block: "end" }); }, [log, chat === null]);
   // Stars you earn float up from the Stars counter instead of filling the screen with messages.
   const [pops, setPops] = useState<{ id: number; n: number }[]>([]);
   const lastStars = useRef<number | null>(null), popId = useRef(0);
@@ -160,6 +172,11 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
         created = new Engine({ canvas: canvas.current!, stickBase: stickBase.current!, stickKnob: stickKnob.current! }, world, art.clips, friendId, {
           onHud: setHud,
           onLevelUp: info => setLevelUp(info),
+          onChat: line => {
+            const id = ++chatId.current;
+            setLog(list => [...list.slice(-49), { ...line, id }]);
+            if (!line.me && !chatOpen.current) setUnread(n => n + 1);
+          },
           onToast: toast,
           onProgress: p => saveProgress(friendId, p),
         }, kit, loadProgress(friendId));
@@ -260,11 +277,23 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
         </button>}
         {mode === "walk" && touch && <button type="button" className="fp-jump" onPointerDown={() => engine.current?.jump()} aria-label="Jump">⤒</button>}
         {mode === "walk" && <div className="fp-chatbar">
-          {chat === null ? <button type="button" className="fp-icon fp-glass" onClick={() => setChat("")} aria-label="Chat (T)" title="Chat (T)"><Icon name="chat" /></button>
-            : <input autoFocus maxLength={80} placeholder="Say something… (Enter to send)" enterKeyHint="send" value={chat} onChange={e => setChat(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") sendChat(); else if (e.key === "Escape") setChat(null); }} onBlur={() => { if (!chat.trim()) setChat(null); }} />}
-          <button type="button" className={`fp-icon fp-glass${emotes ? " on" : ""}`} onClick={() => setEmotes(!emotes)} aria-label="Emotes" aria-expanded={emotes}><Icon name="smile" /></button>
-          {emotes && <div className="fp-emotes">{(["wave", "heart", "party", "laugh"] as const).map(e => <button key={e} type="button" className="fp-emote" onClick={() => { engine.current?.emote(e); setEmotes(false); }} aria-label={e}>{({ wave: "👋", heart: "❤️", party: "🎉", laugh: "😂" })[e]}</button>)}</div>}
+          {chat === null ? <button type="button" className="fp-icon fp-glass" onClick={() => setChat("")} aria-label="Chat (T)" title="Chat (T)"><Icon name="chat" />{unread > 0 && <small className="fp-badge">{unread}</small>}</button>
+            : <div className="fp-chatpanel" role="dialog" aria-label="Galaxy chat">
+              <div className="fp-chat-head">
+                <b>Galaxy chat</b>
+                <small className={hud.online.status}>{hud.online.status === "online" ? `${hud.online.players.length + 1} online` : hud.online.status === "connecting" ? "Connecting…" : "Offline"}</small>
+                <button type="button" className="fp-x" onClick={() => setChat(null)} aria-label="Close chat">×</button>
+              </div>
+              <div className="fp-chat-log" aria-live="polite">
+                {log.length ? log.map(m => <p key={m.id} className={m.me ? "me" : ""}><b>{m.me ? "You" : m.from ? `Friend #${m.from}` : "Someone"}</b><span>{m.text}</span></p>)
+                  : <p className="fp-chat-empty">{hud.online.status === "online" ? "Say hi! Everyone online in the galaxy sees your messages." : "You're offline, so only you will see messages. Turn on online in 🌐."}</p>}
+                <div ref={logEnd} />
+              </div>
+              <input autoFocus maxLength={80} placeholder="Message… (Enter to send)" enterKeyHint="send" value={chat} onChange={e => setChat(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); if (chat.trim()) { engine.current?.say(chat); setChat(""); } } else if (e.key === "Escape") setChat(null); }} />
+            </div>}
+          {chat === null && <button type="button" className={`fp-icon fp-glass${emotes ? " on" : ""}`} onClick={() => setEmotes(!emotes)} aria-label="Emotes" aria-expanded={emotes}><Icon name="smile" /></button>}
+          {chat === null && emotes && <div className="fp-emotes">{(["wave", "heart", "party", "laugh"] as const).map(e => <button key={e} type="button" className="fp-emote" onClick={() => { engine.current?.emote(e); setEmotes(false); }} aria-label={e}>{({ wave: "👋", heart: "❤️", party: "🎉", laugh: "😂" })[e]}</button>)}</div>}
         </div>}
 
         {mode === "launch" && hud.countdown > 0 && <div key={hud.countdown} className="fp-count">{hud.countdown}</div>}
@@ -407,14 +436,14 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
           {shopTab === "featured" ? (() => { const week = featured(); return <div className="fp-featured">
             <p className="fp-feat-head"><span>This week · {Math.round(FEATURED_OFF * 100)}% off</span><small>New picks in {week.endsInDays} day{week.endsInDays > 1 ? "s" : ""}</small></p>
             <div className="fp-feat-grid">{week.items.map(i => { const owned = hud.wallet.owned.includes(i.id); return <div key={i.id} className={`fp-feat${owned ? " owned" : ""}`}>
-              <span className="fp-feat-ico">{i.icon}</span>
+              <span className="fp-feat-ico"><ItemArt item={i} pilot={pilot} /></span>
               <b>{i.name}</b><small>{i.text}</small>
               {owned ? <button type="button" className="fp-owned" onClick={() => engine.current?.equip(i.id)}>{Object.values(hud.wallet.equip).includes(i.id) ? "Wearing" : "Wear"}</button>
                 : <button type="button" className="fp-buy rf" onClick={() => setCheckout(i.id)}><Price item={i} /></button>}
             </div>; })}</div>
             <p className="fp-feat-head"><span>Complete sets</span><small>20% off what you don't own</small></p>
             <div className="fp-bundles">{BUNDLES.map(bd => { const offer = offerFor(bd.id, hud.wallet.owned)!, done = offer.price === 0; return <div key={bd.id} className={`fp-bundle${done ? " owned" : ""}`}>
-              <span className="fp-bundle-icons">{bd.items.map(i => <i key={i}>{SHOP.find(x => x.id === i)?.icon}</i>)}</span>
+              <span className="fp-bundle-icons">{bd.items.map(i => <i key={i}><ItemArt item={SHOP.find(x => x.id === i)!} pilot={pilot} /></i>)}</span>
               <span className="fp-bundle-txt"><b>{bd.name}</b><small>{bd.text}</small></span>
               {done ? <span className="fp-item-tag">Owned</span>
                 : <button type="button" className="fp-buy rf" onClick={() => setCheckout(bd.id)}><Coin /> {offer.price} <s>{offer.full}</s></button>}
@@ -433,7 +462,7 @@ export default function FriendPlanets({ friendId, client, paused }: GameComponen
             const owned = hud.wallet.owned.includes(i.id), worn = Object.values(hud.wallet.equip).includes(i.id), count = hud.wallet.items[i.id] ?? 0;
             const short = i.currency === "star" && hud.stars < i.price;
             return <li key={i.id} className={`${worn ? "worn" : ""}${i.currency === "rf" ? " premium" : ""}`}>
-              <span className="fp-item-ico">{i.icon}</span>
+              <span className="fp-item-ico"><ItemArt item={i} pilot={pilot} /></span>
               <span className="fp-item-txt"><b>{i.name}{count ? ` ×${count}` : ""}{i.currency === "rf" && <em className="fp-tag">Premium</em>}{i.currency === "earned" && <em className="fp-tag earned">{i.how?.startsWith("Galaxy") ? "Pass" : "Earned"}</em>}</b><small>{i.text}</small></span>
               {i.kind === "item" ? <span className="fp-item-btns">
                   {i.id === "item:fert" && count > 0 && <button type="button" className="fp-owned" disabled={!hud.wallet.canFertilize} onClick={() => engine.current?.fertilize()} title={hud.wallet.canFertilize ? "Ripen your crops now" : "Stand on a planet with growing crops"}>Use</button>}

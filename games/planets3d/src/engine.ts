@@ -13,6 +13,7 @@ import { GROW_MS, plotsFor, stageOf, type Progress } from "./progress";
 import { SHOP, canBuy, claimDaily, goodsOf, grant, has, itemById, offerFor, sell, splitFor, stash, useItem, walletOf, type Offer, type Order, type ShopItem } from "./economy";
 import { payments } from "./payments";
 import { Aura } from "./aura";
+import { PIXEL_HATS } from "./pixelhats";
 import { countTask, dailyTasks, type TaskEvent, type TaskView } from "./tasks";
 import { LEVEL_UNLOCKS, LEVEL_UP_STARS, TIER_XP, levelOf, nextUnlock, passOffer, passTiers, seasonNow, seasonOf, titleFor, type PassReward, type TierView } from "./progression";
 import { Blocks, glowMaterial, litMaterial } from "./models";
@@ -55,8 +56,11 @@ export interface HudState {
   wallet: { bag: { key: string; name: string; icon: string; n: number; price: number }[]; owned: string[]; equip: { rocket: string; hat: string; aura: string }; items: Record<string, number>; canFertilize: boolean; simulated: boolean; owner: number | null };
 }
 export interface LevelUp { level: number; title: string; unlocked: ShopItem | null; stars: number }
+export interface ChatLine { from: number | null; text: string; me: boolean }
 export interface EngineHost {
   onHud(state: HudState): void;
+  /** A chat message from anyone online in the galaxy (or your own). */
+  onChat?(line: ChatLine): void;
   onLevelUp?(info: LevelUp): void;
   onToast(text: string, kind: ToastKind): void;
   onProgress(progress: Progress): void;
@@ -82,10 +86,10 @@ function randomTangent(n: THREE.Vector3) {
   return t1.multiplyScalar(Math.cos(a)).add(t2.multiplyScalar(Math.sin(a)));
 }
 /** A hat is an emoji sprite sitting on a Friend's head (its centre sits this far above the head). */
-const HAT_LIFT = 0.02;
-function hatFor(id: string | undefined) { return id ? itemById(id)?.hat ?? null : null; }
+/** A hat is pixel art drawn into the Friend's own sprite (see pixelhats.ts). */
+function hatFor(id: string | undefined) { return id ? PIXEL_HATS[id] ?? null : null; }
 type PeerView = {
-  id: string; s: PeerState; model: FriendBillboard; label: Label; bubble: Label; bubbleT: number; shadow: THREE.Mesh; hat: Label; hatY: number; aura: Aura | null; auraId: string;
+  id: string; s: PeerState; model: FriendBillboard; label: Label; bubble: Label; bubbleT: number; shadow: THREE.Mesh; hatId: string; aura: Aura | null; auraId: string;
   n: THREE.Vector3; world: THREE.Vector3; hop: number; vy: number; clipsFor: number; seen: number;
 };
 type Quest = { id: string; text: string; target: "pond" | "farm" | "pad" | "sport" | "dig" | "bug"; done: (e: Engine) => boolean };
@@ -187,7 +191,6 @@ export class Engine {
   onlineEnabled = true;
   extras: Extras | null = null;
   private promptExtra: { kind: "dig" | "bug"; i: number } | null = null;
-  private myHat = new Label(0.8);
   constructor(private elements: EngineElements, world: World, private clips: Clips, private friendId: bigint, private host: EngineHost, private audio: ValleyAudio | null, readonly progress: Progress) {
     this.renderer = new THREE.WebGLRenderer({ canvas: elements.canvas, antialias: true, powerPreference: "high-performance" });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -231,7 +234,6 @@ export class Engine {
     this.scene.add(this.rocket.group);
     this.friend = new FriendBillboard(clips);
     this.scene.add(this.friend.group, this.shadow);
-    this.myHat.sprite.position.set(0, headTop(clips) + HAT_LIFT, 0.05); this.friend.mesh.add(this.myHat.sprite); // tilts with the billboard
     this.wearHat();
     this.wearAura();
     if (this.perk.id === "glow") { this.glowLight = new THREE.PointLight(home.spec.theme.glow, 0, 10, 1.6); this.glowLight.position.set(0, 1.4, 0.3); this.friend.group.add(this.glowLight); }
@@ -240,7 +242,12 @@ export class Engine {
     try { this.onlineEnabled = window.localStorage.getItem("friend-planets-3d:online") !== "off"; } catch { /* default on */ }
     this.net.onPeer = (id, st) => this.peerState(id, st);
     this.net.onLeave = id => this.dropPeer(id);
-    this.net.onSay = (id, text) => { const p = this.peers.get(id); if (p) { p.bubble.set([{ text, color: "#111111", size: 30 }], true); p.bubbleT = 5; this.audio?.pop(); } };
+    this.net.onSay = (id, text) => {
+      const p = this.peers.get(id);
+      if (p) { p.bubble.set([{ text, color: "#111111", size: 30 }], true); p.bubbleT = 5; }
+      this.audio?.pop();
+      this.host.onChat?.({ from: p ? p.s.f : null, text, me: false });
+    };
     this.net.onEmote = (id, e) => { const p = this.peers.get(id); if (p) { p.bubble.set([{ text: EMOTE_ICONS[e] ?? "!", size: 56 }], true); p.bubbleT = 2.5; if (p.hop === 0) { p.vy = 7; p.hop = 0.01; } } };
     this.net.onStatus = () => this.emitHud();
     this.net.hello(this.onlineEnabled);
@@ -254,7 +261,7 @@ export class Engine {
     // Planets you discovered before come back (their artwork is read from the chain again).
     for (const id of progress.discovered ?? []) void loadPilot(BigInt(id)).then(art => { if (this.running && !this.planets.some(p => p.spec.id === id)) this.addPlanet({ id, familyId: art.familyId, clips: art.clips }); });
     this.cockpit = new Cockpit(home.spec.theme.roof);
-    this.pilot = new FriendBillboard(clips, 1.3);
+    this.pilot = new FriendBillboard(clips, 1.3, hatFor(walletOf(progress).equip.hat));
     this.pilot.show("up", false, 0);
     this.pilot.group.rotation.y = 0.55;
     this.pilot.group.position.set(0.05, 0.02, -0.3);
@@ -346,11 +353,11 @@ export class Engine {
     let p = this.peers.get(id);
     if (!p) {
       const model = new FriendBillboard(stillClips(fallbackSprite(st.f)));
-      const label = new Label(0.42), bubble = new Label(0.36), shadow = blobShadow(0.8), hat = new Label(0.8);
+      const label = new Label(0.42), bubble = new Label(0.36), shadow = blobShadow(0.8);
       label.set([{ text: `Friend #${st.f}`, color: "#f7f4ec", size: 34 }]);
       bubble.sprite.visible = false;
-      this.scene.add(model.group, label.sprite, bubble.sprite, shadow, hat.sprite);
-      p = { id, s: st, model, label, bubble, bubbleT: 0, shadow, hat, hatY: 2, aura: null, auraId: "", n: new THREE.Vector3(...st.n).normalize(), world: new THREE.Vector3(), hop: 0, vy: 0, clipsFor: 0, seen: this.time };
+      this.scene.add(model.group, label.sprite, bubble.sprite, shadow);
+      p = { id, s: st, model, label, bubble, bubbleT: 0, shadow, hatId: "", aura: null, auraId: "", n: new THREE.Vector3(...st.n).normalize(), world: new THREE.Vector3(), hop: 0, vy: 0, clipsFor: 0, seen: this.time };
       this.peers.set(id, p);
       this.host.onToast(`Friend #${st.f} is online`, "info");
       const view = p;
@@ -358,17 +365,15 @@ export class Engine {
       void loadPilot(BigInt(st.f)).then(art => {
         if (!this.peers.has(id) || view.clipsFor === st.f) return;
         view.clipsFor = st.f;
-        const fresh = new FriendBillboard(art.clips);
+        const fresh = new FriendBillboard(art.clips, undefined, hatFor(view.hatId));
         this.scene.remove(view.model.group); view.model.dispose();
-        view.model = fresh; this.scene.add(fresh.group); view.hatY = headTop(art.clips) + HAT_LIFT;
+        view.model = fresh; this.scene.add(fresh.group);
       });
     }
     if (p.s.p !== st.p) p.n.set(...st.n).normalize();
     p.s = st; p.seen = this.time;
     if (st.lv) p.label.set([{ text: `Friend #${st.f}`, color: "#f7f4ec", size: 34 }, { text: `Lv ${st.lv} · ${st.gp ? "✦ " : ""}${titleFor(st.lv)}`, color: st.gp ? "#f2c46b" : "#c9d1e0", size: 24 }]);
-    const hat = hatFor(st.h);
-    if (hat) p.hat.set([{ text: hat, size: 40 }]);
-    p.hat.sprite.userData.on = !!hat;
+    if ((st.h ?? "") !== p.hatId) { p.hatId = st.h ?? ""; p.model.setHat(hatFor(p.hatId)); }
     if ((st.a ?? "") !== p.auraId) {
       p.auraId = st.a ?? ""; p.aura?.dispose(); p.aura = null;
       const look = itemById(p.auraId)?.aura;
@@ -377,8 +382,8 @@ export class Engine {
   }
   private dropPeer(id: string) {
     const p = this.peers.get(id); if (!p) return;
-    this.scene.remove(p.model.group, p.label.sprite, p.bubble.sprite, p.shadow, p.hat.sprite);
-    p.model.dispose(); p.label.dispose(); p.bubble.dispose(); p.hat.dispose(); p.aura?.dispose();
+    this.scene.remove(p.model.group, p.label.sprite, p.bubble.sprite, p.shadow);
+    p.model.dispose(); p.label.dispose(); p.bubble.dispose(); p.aura?.dispose();
     this.peers.delete(id);
   }
   private updatePeers(dt: number) {
@@ -387,7 +392,6 @@ export class Engine {
       if (this.time - p.seen > 20) { this.dropPeer(p.id); continue; }
       const here = p.s.p === planet.spec.id && p.s.mode !== "fly" && (this.mode === "walk" || this.mode === "play" || this.mode === "intro");
       p.model.group.visible = p.label.sprite.visible = p.shadow.visible = here;
-      p.hat.sprite.visible = here && p.hat.sprite.userData.on === true;
       if (p.aura) p.aura.group.visible = here;
       p.bubbleT -= dt;
       p.bubble.sprite.visible = here && p.bubbleT > 0;
@@ -411,7 +415,6 @@ export class Engine {
       p.label.sprite.position.copy(p.world).addScaledVector(n, 2.6);
       p.label.sprite.visible = !p.bubble.sprite.visible;
       p.bubble.sprite.position.copy(p.world).addScaledVector(n, 2.6);
-      p.hat.sprite.position.copy(p.world).addScaledVector(n, p.hatY);
       if (p.aura) { p.aura.group.position.copy(p.world).addScaledVector(n, -p.hop); p.aura.group.quaternion.setFromUnitVectors(Y, n); }
       p.shadow.position.copy(p.world).addScaledVector(n, 0.04 - p.hop); p.shadow.quaternion.setFromUnitVectors(Y, n);
     }
@@ -422,7 +425,7 @@ export class Engine {
     if (!clean) return;
     this.myBubble.set([{ text: clean, color: "#111111", size: 30 }], true); this.myBubbleT = 5;
     this.net.say(clean); this.audio?.pop();
-    if (this.net.status !== "online") this.host.onToast("You're offline: only you can see this. Turn on online in 🌐.", "info");
+    this.host.onChat?.({ from: Number(this.friendId), text: clean, me: true });
   }
   emote(e: string) {
     this.myBubble.set([{ text: EMOTE_ICONS[e] ?? "!", size: 56 }], true); this.myBubbleT = 2.5;
@@ -1337,8 +1340,7 @@ export class Engine {
   }
   private wearHat() {
     const hat = hatFor(walletOf(this.progress).equip.hat);
-    if (hat) this.myHat.set([{ text: hat, size: 40 }]);
-    this.myHat.sprite.visible = !!hat;
+    this.friend.setHat(hat); this.pilot?.setHat(hat);
   }
   private walletHud(): HudState["wallet"] {
     const w = walletOf(this.progress);

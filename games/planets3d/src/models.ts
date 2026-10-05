@@ -6,6 +6,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { FACINGS, type Clips, type Facing } from "../sprites";
 import { toon } from "./look";
+import { HEADROOM, paintFriend, type PixelHat } from "./pixelhats";
 
 /** Soft cel shading for everything solid; glowing bits are brighter than white so they bloom. */
 export const litMaterial = toon({ vertexColors: true });
@@ -151,31 +152,41 @@ export class FriendBillboard {
   readonly group = new THREE.Group();
   readonly mesh: THREE.Mesh;
   private texture: THREE.CanvasTexture;
-  constructor(clips: Clips, size = FRIEND_SIZE) {
-    const canvas = document.createElement("canvas");
-    canvas.width = CELL * SCALE * 16; canvas.height = CELL * SCALE * 4;
-    const ctx = canvas.getContext("2d")!;
-    FACINGS.forEach((facing, row) => {
-      for (let column = 0; column < 16; column++) {
-        const walking = column >= 8, clip = clips[walking ? "walk" : "idle"][facing], rows = clip[(column % 8) % clip.length];
-        const ox = column * CELL * SCALE + SCALE, oy = row * CELL * SCALE + SCALE;
-        // Canonical treatment: unmodified one-bit mask in black with a one-pixel white halo.
-        ctx.fillStyle = "#ffffff";
-        rows.forEach((line, y) => [...line].forEach((pixel, x) => { if (pixel === "#") ctx.fillRect(ox + (x - 1) * SCALE, oy + (y - 1) * SCALE, SCALE * 3, SCALE * 3); }));
-        ctx.fillStyle = "#000000";
-        rows.forEach((line, y) => [...line].forEach((pixel, x) => { if (pixel === "#") ctx.fillRect(ox + x * SCALE, oy + y * SCALE, SCALE, SCALE); }));
-      }
-    });
-    this.texture = new THREE.CanvasTexture(canvas);
+  private canvas = document.createElement("canvas");
+  private hat: PixelHat | null = null;
+  constructor(private clips: Clips, size = FRIEND_SIZE, hat: PixelHat | null = null) {
+    // Each frame is the 18×18 Friend cell plus headroom above it, so hats fit on any Friend.
+    const cellH = CELL + HEADROOM;
+    this.canvas.width = CELL * SCALE * 16; this.canvas.height = cellH * SCALE * 4;
+    this.hat = hat;
+    this.paint();
+    this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.colorSpace = THREE.SRGBColorSpace;
     this.texture.magFilter = THREE.NearestFilter;
     this.texture.minFilter = THREE.NearestFilter;
     this.texture.generateMipmaps = false;
     this.texture.repeat.set(1 / 16, 1 / 4);
-    const geometry = new THREE.PlaneGeometry(size, size); geometry.translate(0, size / 2 - size / CELL, 0);
+    const height = size * cellH / CELL;
+    const geometry = new THREE.PlaneGeometry(size, height); geometry.translate(0, height / 2 - size / CELL, 0);
     this.mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: this.texture, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide }));
     this.group.add(this.mesh);
     this.show("down", false, 0);
+  }
+  /** Canonical treatment: the unmodified one-bit mask in black with a one-pixel white halo, and the hat on top. */
+  private paint() {
+    const ctx = this.canvas.getContext("2d")!, cellH = CELL + HEADROOM;
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    FACINGS.forEach((facing, row) => {
+      for (let column = 0; column < 16; column++) {
+        const walking = column >= 8, clip = this.clips[walking ? "walk" : "idle"][facing], rows = clip[(column % 8) % clip.length];
+        paintFriend(ctx, rows, this.hat, column * CELL * SCALE + SCALE, row * cellH * SCALE + (HEADROOM + 1) * SCALE, SCALE, facing === "left");
+      }
+    });
+  }
+  /** Put on (or take off) a hat. */
+  setHat(hat: PixelHat | null) {
+    if (hat === this.hat) return;
+    this.hat = hat; this.paint(); this.texture.needsUpdate = true;
   }
   show(facing: Facing, walking: boolean, frame: number) {
     const row = FACINGS.indexOf(facing), column = (walking ? 8 : 0) + (frame % 8);
